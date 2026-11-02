@@ -108,6 +108,24 @@ button:disabled { opacity: .45; cursor: default; }
 .sim-head span { color: #cbd5e1; font-size: 13px; }
 .sim-actions { display: flex; gap: 6px; }
 .sim-actions button { background: rgba(248,250,252,.94); color: #0f172a; }
+.sim-controller {
+  position: absolute; z-index: 2; top: 68px; right: 16px; width: min(420px, calc(100vw - 32px));
+  padding: 18px; border: 1px solid #cbd5e1; border-radius: 10px; background: #f8fafc; color: #0f172a;
+  box-shadow: 0 16px 44px #02061780;
+}
+.sim-controller[hidden] { display: none; }
+.sim-controller-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.sim-controller-head h2 { margin: 0; font-size: 20px; }
+.sim-controller-state { margin: 14px 0; color: #64748b; font-weight: 600; }
+.sim-controller-state::before { content: ""; display: inline-block; width: 9px; height: 9px; margin-right: 8px; border-radius: 50%; background: #94a3b8; }
+.sim-controller-state.connected { color: #15803d; }
+.sim-controller-state.connected::before { background: #16a34a; }
+.sim-controller-label { display: block; margin-bottom: 5px; color: #475569; font-size: 12px; font-weight: 600; }
+#simControllerSelect { width: 100%; min-height: 40px; }
+.sim-controller-buttons { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-top: 10px; }
+.sim-controller-buttons span { color: #64748b; font-size: 12px; }
+.sim-controller-hint, .sim-controller-note { color: #475569; font-size: 12px; line-height: 1.5; }
+.sim-controller-note { margin-bottom: 0; color: #64748b; }
 .sim-map {
   position: absolute; top: 70px; right: 16px; width: min(23vw, 260px); height: min(23vw, 190px);
   border: 1px solid rgba(255,255,255,.7); border-radius: 8px; box-shadow: 0 4px 20px #0f172a66;

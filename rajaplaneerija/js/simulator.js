@@ -28,6 +28,16 @@ class FlightSimulator {
     this.yaw = 0;
     this.pitch = 0;
     this.sceneBuilt = false;
+    this.settingsOpen = false;
+    this.resumeAfterSettings = false;
+    this.gamepads = [];
+    this.gamepadIndex = null;
+    this.gamepadSignature = '';
+    this.controllerStorageKey = 'droonirajaplaneerija.fpvpult';
+    this.settingsStorageKey = 'droonirajaplaneerija.fpvcontrols';
+    this.controls = this.loadControlSettings();
+    this.liveInput = { throttle: 0, roll: 0, pitch: 0, yaw: 0 };
+    this.liveRowsBuilt = false;
     if (this.gl) this.initGL();
     this.bind();
   }
@@ -140,6 +150,10 @@ class FlightSimulator {
   bind() {
     this.onKeyDown = e => {
       if (!this.active) return;
+      if (this.settingsOpen) {
+        if (e.key === 'Escape') { e.preventDefault(); this.closeSettings(); }
+        return;
+      }
       if (['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', ' '].includes(e.key)) e.preventDefault();
       if (e.key === 'Escape') { this.close(); return; }
       if (e.key === ' ' && !e.repeat) { this.pause(); return; }
@@ -147,9 +161,273 @@ class FlightSimulator {
     };
     this.onKeyUp = e => this.keys.delete(e.key.toLowerCase());
     this.onBlur = () => this.keys.clear();
+    this.onGamepadChange = () => this.scanGamepads(false);
     window.addEventListener('keydown', this.onKeyDown);
     window.addEventListener('keyup', this.onKeyUp);
     window.addEventListener('blur', this.onBlur);
+    window.addEventListener('gamepadconnected', this.onGamepadChange);
+    window.addEventListener('gamepaddisconnected', this.onGamepadChange);
+  }
+
+  openSettings() {
+    if (!this.active || this.settingsOpen) return;
+    this.settingsOpen = true;
+    this.resumeAfterSettings = !this.paused;
+    if (!this.paused) this.pause();
+    this.ui.settings.hidden = false;
+    this.refreshSettings();
+    this.ui.settingsClose.focus();
+  }
+
+  closeSettings() {
+    if (!this.settingsOpen) return;
+    this.settingsOpen = false;
+    this.ui.settings.hidden = true;
+    if (this.resumeAfterSettings && this.paused) this.pause();
+    this.resumeAfterSettings = false;
+    this.ui.settingsOpen.focus();
+  }
+
+  loadControlSettings() {
+    const defaults = {
+      mode: 'keyboard', deadzone: 0.03,
+      channels: {
+        throttle: { axis: 1, invert: true }, roll: { axis: 2, invert: false },
+        pitch: { axis: 3, invert: true }, yaw: { axis: 0, invert: false },
+      },
+    };
+    try {
+      const stored = JSON.parse(localStorage.getItem(this.settingsStorageKey));
+      if (!stored || typeof stored !== 'object') return defaults;
+      defaults.mode = stored.mode === 'controller' ? 'controller' : 'keyboard';
+      defaults.deadzone = Number.isFinite(stored.deadzone) ? Math.max(0, Math.min(0.2, stored.deadzone)) : defaults.deadzone;
+      for (const key of Object.keys(defaults.channels)) {
+        if (stored.channels && stored.channels[key]) {
+          const channel = stored.channels[key];
+          if (Number.isInteger(channel.axis) && channel.axis >= 0 && channel.axis < 32) defaults.channels[key].axis = channel.axis;
+          defaults.channels[key].invert = Boolean(channel.invert);
+        }
+      }
+    } catch (e) { /* salvestus pole saadaval */ }
+    return defaults;
+  }
+
+  saveControlSettings() {
+    try { localStorage.setItem(this.settingsStorageKey, JSON.stringify(this.controls)); } catch (e) { /* salvestus pole saadaval */ }
+  }
+
+  setControlMode(mode) {
+    this.controls.mode = mode === 'controller' ? 'controller' : 'keyboard';
+    this.keys.clear();
+    this.saveControlSettings();
+    this.refreshSettings();
+    this.updateControlHint();
+  }
+
+  setDeadzone(value) {
+    this.controls.deadzone = Math.max(0, Math.min(0.2, Number(value) || 0));
+    this.saveControlSettings();
+    this.refreshSettings();
+  }
+
+  setChannelAxis(channel, axis) {
+    if (!this.controls.channels[channel]) return;
+    this.controls.channels[channel].axis = Math.max(0, Math.min(31, Number(axis) || 0));
+    this.saveControlSettings();
+    this.buildControlRows();
+  }
+
+  setChannelInvert(channel, checked) {
+    if (!this.controls.channels[channel]) return;
+    this.controls.channels[channel].invert = Boolean(checked);
+    this.saveControlSettings();
+    this.refreshLiveInput();
+  }
+
+  refreshSettings() {
+    if (!this.settingsOpen) return;
+    this.ui.settings.querySelectorAll('input[name="simControlMode"]').forEach(input => { input.checked = input.value === this.controls.mode; });
+    this.ui.radioSettings.hidden = this.controls.mode !== 'controller';
+    this.ui.keyboardHelp.hidden = this.controls.mode !== 'keyboard';
+    this.ui.deadzone.value = String(this.controls.deadzone * 100);
+    this.ui.deadzoneValue.value = `${(this.controls.deadzone * 100).toFixed(1)}%`;
+    if (this.controls.mode === 'controller') {
+      this.scanGamepads(false);
+      this.buildControlRows();
+      this.refreshLiveInput();
+    }
+  }
+
+  buildControlRows() {
+    if (!this.settingsOpen) return;
+    const labels = this.getLabels();
+    const channels = ['throttle', 'roll', 'pitch', 'yaw'];
+    if (!this.liveRowsBuilt) {
+      this.ui.liveRows.replaceChildren();
+      for (const key of channels) {
+        const row = document.createElement('div'); row.className = 'sim-live-row'; row.dataset.channel = key;
+        const name = document.createElement('span'); name.className = 'sim-live-name'; name.textContent = labels['channel' + key[0].toUpperCase() + key.slice(1)];
+        const track = document.createElement('div'); track.className = `sim-live-track${key === 'throttle' ? ' throttle' : ''}`;
+        const fill = document.createElement('i'); fill.className = 'sim-live-fill'; track.append(fill);
+        const value = document.createElement('b'); value.className = 'sim-live-value';
+        const invertLabel = document.createElement('label'); invertLabel.className = 'sim-live-invert';
+        const invert = document.createElement('input'); invert.type = 'checkbox'; invert.setAttribute('aria-label', `${labels['channel' + key[0].toUpperCase() + key.slice(1)]} · ${this.getLabels().invertLabel}`);
+        invert.addEventListener('change', () => this.setChannelInvert(key, invert.checked));
+        invertLabel.append(invert);
+        row.append(name, track, value, invertLabel);
+        this.ui.liveRows.append(row);
+      }
+      this.liveRowsBuilt = true;
+    }
+    this.ui.axisSettings.replaceChildren();
+    const selected = this.gamepads.find(p => p.index === this.gamepadIndex);
+    for (const key of channels) {
+      const row = document.createElement('label'); row.className = 'sim-axis-row';
+      const name = document.createElement('span'); name.textContent = labels['channel' + key[0].toUpperCase() + key.slice(1)];
+      const select = document.createElement('select'); select.dataset.channel = key;
+      const count = selected ? selected.axes.length : 0;
+      if (!count) {
+        const option = document.createElement('option'); option.value = ''; option.textContent = labels.settingsNoAxes; select.append(option); select.disabled = true;
+      } else {
+        for (let i = 0; i < count; i++) { const option = document.createElement('option'); option.value = String(i); option.textContent = `${labels.controllerAxes} ${i + 1}`; select.append(option); }
+        const axis = this.controls.channels[key].axis;
+        if (axis >= count) this.controls.channels[key].axis = Math.min(count - 1, ({ throttle: 1, roll: 2, pitch: 3, yaw: 0 })[key]);
+        select.value = String(this.controls.channels[key].axis);
+        select.addEventListener('change', () => this.setChannelAxis(key, select.value));
+      }
+      row.append(name, select); this.ui.axisSettings.append(row);
+    }
+    this.ui.liveRows.querySelectorAll('.sim-live-row').forEach(row => {
+      const key = row.dataset.channel;
+      row.querySelector('.sim-live-invert input').checked = this.controls.channels[key].invert;
+    });
+    this.saveControlSettings();
+  }
+
+  updateControlHint() {
+    if (!this.ui.controlHint) return;
+    const labels = this.getLabels();
+    this.ui.controlHint.textContent = this.controls.mode === 'controller' ? labels.settingsControllerHint : labels.controlsHint;
+  }
+
+  readControllerInput() {
+    const values = { throttle: 0, roll: 0, pitch: 0, yaw: 0 };
+    if (this.controls.mode !== 'controller' || this.gamepadIndex == null || !navigator.getGamepads) return values;
+    try {
+      const pad = navigator.getGamepads()[this.gamepadIndex];
+      if (!pad || !pad.connected) return values;
+      for (const key of Object.keys(values)) {
+        const mapping = this.controls.channels[key];
+        let value = Number(pad.axes[mapping.axis]) || 0;
+        if (mapping.invert) value *= -1;
+        const magnitude = Math.abs(value), dz = this.controls.deadzone;
+        values[key] = magnitude <= dz ? 0 : Math.sign(value) * (magnitude - dz) / (1 - dz);
+      }
+    } catch (e) { /* seade eemaldati lugemise ajal */ }
+    return values;
+  }
+
+  refreshLiveInput() {
+    this.liveInput = this.readControllerInput();
+    if (!this.settingsOpen || this.controls.mode !== 'controller') return;
+    const rows = this.ui.liveRows.querySelectorAll('.sim-live-row');
+    rows.forEach(row => {
+      const key = row.dataset.channel, value = this.liveInput[key];
+      const fill = row.querySelector('.sim-live-fill'), output = row.querySelector('.sim-live-value');
+      if (key === 'throttle') {
+        const pct = Math.round((value + 1) * 50);
+        fill.style.width = `${pct}%`; output.textContent = `${pct}%`;
+      } else {
+        const pct = Math.min(50, Math.abs(value) * 50);
+        fill.style.width = `${pct}%`; fill.style.left = value < 0 ? `${50 - pct}%` : '50%';
+        output.textContent = `${Math.round(value * 100)}%`;
+      }
+    });
+  }
+
+  openController() {
+    this.openSettings();
+    this.setControlMode('controller');
+  }
+
+  closeController() {
+    this.closeSettings();
+  }
+
+  selectGamepad(indexValue) {
+    const index = indexValue === '' ? null : Number(indexValue);
+    this.gamepadIndex = Number.isInteger(index) ? index : null;
+    const selected = this.gamepads.find(p => p.index === this.gamepadIndex);
+    try {
+      if (selected) localStorage.setItem(this.controllerStorageKey, selected.id);
+      else localStorage.removeItem(this.controllerStorageKey);
+    } catch (e) { /* salvestus pole saadaval */ }
+    this.renderGamepads(true);
+    this.buildControlRows();
+  }
+
+  scanGamepads(force) {
+    if (!this.ui.controllerSelect || !this.active) return;
+    if (!navigator.getGamepads) {
+      this.gamepads = [];
+      this.gamepadIndex = null;
+      this.renderGamepads(true, true);
+      this.buildControlRows();
+      return;
+    }
+    let pads = [];
+    try { pads = Array.from(navigator.getGamepads() || []).filter(p => p && p.connected); } catch (e) { /* brauser ei saanud seadmeid lugeda */ }
+    this.gamepads = pads;
+    const current = pads.find(p => p.index === this.gamepadIndex);
+    let preferred = '';
+    try { preferred = localStorage.getItem(this.controllerStorageKey) || ''; } catch (e) { /* salvestus pole saadaval */ }
+    const selected = current || pads.find(p => p.id === preferred) || pads[0] || null;
+    this.gamepadIndex = selected ? selected.index : null;
+    this.renderGamepads(Boolean(force), false);
+  }
+
+  renderGamepads(force, unsupported) {
+    const labels = this.getLabels();
+    const signature = `${unsupported ? 'unsupported' : 'supported'}|${this.gamepads.map(p => `${p.index}:${p.id}:${p.axes.length}:${p.buttons.length}`).join('|')}|${this.gamepadIndex}`;
+    if (!force && signature === this.gamepadSignature) return;
+    this.gamepadSignature = signature;
+    const select = this.ui.controllerSelect;
+    select.replaceChildren();
+    if (unsupported) {
+      const option = document.createElement('option');
+      option.textContent = labels.controllerUnsupported;
+      select.append(option);
+      select.disabled = true;
+      this.ui.controllerState.textContent = labels.controllerUnsupported;
+      this.ui.controllerState.classList.remove('connected');
+      this.ui.controllerCounts.textContent = '';
+      this.buildControlRows();
+      return;
+    }
+    select.disabled = false;
+    if (!this.gamepads.length) {
+      const option = document.createElement('option');
+      option.value = '';
+      option.textContent = labels.controllerNone;
+      select.append(option);
+      this.ui.controllerState.textContent = labels.controllerNone;
+      this.ui.controllerState.classList.remove('connected');
+      this.ui.controllerCounts.textContent = '';
+      this.buildControlRows();
+      return;
+    }
+    for (const pad of this.gamepads) {
+      const option = document.createElement('option');
+      option.value = String(pad.index);
+      option.textContent = pad.id || labels.controllerDevice;
+      select.append(option);
+    }
+    select.value = String(this.gamepadIndex);
+    const selected = this.gamepads.find(p => p.index === this.gamepadIndex);
+    this.ui.controllerState.textContent = labels.controllerConnected;
+    this.ui.controllerState.classList.add('connected');
+    this.ui.controllerCounts.textContent = `${labels.controllerSelectedAxes}: ${selected.axes.length} · ${labels.controllerSelectedButtons}: ${selected.buttons.length}`;
+    this.buildControlRows();
   }
 
   start() {
@@ -176,6 +454,7 @@ class FlightSimulator {
     this.ui.root.hidden = false;
     this.ui.root.setAttribute('aria-hidden', 'false');
     this.ui.pause.textContent = this.getLabels().pause;
+    this.updateControlHint();
     this.resize();
     if (!alreadyActive) { const token = ++this.loopToken; requestAnimationFrame(t => this.tick(t, token)); }
     return true;
@@ -184,6 +463,8 @@ class FlightSimulator {
   close() {
     if (!this.active) return;
     this.active = false;
+    this.settingsOpen = false;
+    this.ui.settings.hidden = true;
     this.loopToken++;
     this.keys.clear();
     this.ui.root.hidden = true;
@@ -218,17 +499,21 @@ class FlightSimulator {
     if (!this.active || token !== this.loopToken) return;
     const dt = Math.min(0.04, Math.max(0, (now - this.last) / 1000));
     this.last = now;
+    if (this.settingsOpen) this.scanGamepads(false);
+    this.refreshLiveInput();
     if (!this.paused && !this.finished) this.update(dt);
     this.draw();
     requestAnimationFrame(t => this.tick(t, token));
   }
 
   update(dt) {
-    const k = this.keys, forward = Number(k.has('w') || k.has('arrowup')) - Number(k.has('s') || k.has('arrowdown'));
-    const side = Number(k.has('d')) - Number(k.has('a'));
-    const vertical = Number(k.has('r')) - Number(k.has('f'));
-    const turn = Number(k.has('e') || k.has('arrowright')) - Number(k.has('q') || k.has('arrowleft'));
-    const boost = k.has('shift') ? 1.8 : 1;
+    const k = this.keys;
+    const controller = this.controls.mode === 'controller' ? this.readControllerInput() : null;
+    const forward = controller ? controller.pitch : Number(k.has('w') || k.has('arrowup')) - Number(k.has('s') || k.has('arrowdown'));
+    const side = controller ? controller.roll : Number(k.has('d')) - Number(k.has('a'));
+    const vertical = controller ? controller.throttle : Number(k.has('r')) - Number(k.has('f'));
+    const turn = controller ? controller.yaw : Number(k.has('e') || k.has('arrowright')) - Number(k.has('q') || k.has('arrowleft'));
+    const boost = !controller && k.has('shift') ? 1.8 : 1;
     const accel = 4.2, drag = Math.exp(-1.5 * dt);
     this.yaw += turn * 1.65 * dt;
     const fx = Math.cos(this.yaw), fy = Math.sin(this.yaw), rx = -fy, ry = fx;

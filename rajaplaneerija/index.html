@@ -15,7 +15,7 @@
   <meta property="og:image:alt" content="Droonirajaplaneerija: 3D-vaade drooni lennurajast">
   <meta name="twitter:card" content="summary_large_image">
   <link rel="icon" href="../assets/track/ring.svg">
-  <link rel="stylesheet" href="css/style.css?v=dev">
+  <link rel="stylesheet" href="css/style.css?v=settings-controls-1">
 </head>
 <body>
   <header class="topbar">
@@ -97,11 +97,48 @@
     <header class="sim-head">
       <div><strong data-i18n="sim.title">FPV-simulaator</strong><span id="simStatus" data-i18n="sim.ready">Valmis</span></div>
       <div class="sim-actions">
+        <button id="simSettingsOpen" data-i18n="sim.settings.open">Seaded</button>
         <button id="simPause" data-i18n="sim.pause">Peata</button>
         <button id="simRestart" data-i18n="sim.restart">Alusta uuesti</button>
         <button id="simClose" data-i18n="sim.exit">Välju</button>
       </div>
     </header>
+    <section class="sim-settings-scrim" id="simSettings" role="dialog" aria-modal="true" aria-labelledby="simSettingsTitle" hidden>
+      <div class="sim-settings">
+        <header class="sim-settings-head">
+          <div><h2 id="simSettingsTitle" data-i18n="sim.settings.title">Seaded</h2><span data-i18n="sim.settings.subtitle">Kontrolli ja seadmed</span></div>
+          <button id="simSettingsClose" type="button" data-i18n="sim.settings.close" data-i18n-aria="sim.settings.close">Sulge</button>
+        </header>
+        <nav class="sim-settings-nav" aria-label="Seadete kategooriad" data-i18n-aria="sim.settings.categories">
+          <button type="button" class="on" data-i18n="sim.settings.controls">Controls</button>
+        </nav>
+        <div class="sim-settings-content">
+          <h3 data-i18n="sim.settings.controls">Controls</h3>
+          <fieldset class="sim-control-mode">
+            <legend data-i18n="sim.settings.controlMethod">Juhtimisviis</legend>
+            <label><input type="radio" name="simControlMode" value="keyboard"><span data-i18n="sim.settings.keyboard">Klaviatuur</span></label>
+            <label><input type="radio" name="simControlMode" value="controller"><span data-i18n="sim.settings.controller">Pult</span></label>
+          </fieldset>
+          <div class="sim-keyboard-help" id="simKeyboardHelp" data-i18n="sim.settings.keyboardHelp">W/S edasi-tagasi · A/D külgsuunas · Q/E pööramine · R/F tõus ja laskumine · Shift kiirendus</div>
+          <div class="sim-radio-settings" id="simRadioSettings" hidden>
+            <div class="sim-controller-state" id="simControllerState" aria-live="polite"></div>
+            <label class="sim-controller-label" for="simControllerSelect" data-i18n="sim.controller.device">Tuvastatud pult</label>
+            <div class="sim-device-row">
+              <select id="simControllerSelect" aria-describedby="simControllerHint"></select>
+              <button id="simControllerRescan" type="button" data-i18n="sim.controller.rescan">Otsi uuesti</button>
+            </div>
+            <p class="sim-controller-hint" id="simControllerHint" data-i18n="sim.controller.hint">Ühenda pult USB-kaabliga ja lülita see sisse. Kui pulti ei ilmu, klõpsa simulaatori aknal ja liiguta kangi või vajuta nuppu.</p>
+            <section class="sim-live-input" aria-labelledby="simLiveTitle">
+              <div class="sim-live-title"><h4 id="simLiveTitle" data-i18n="sim.controller.liveInput">Live input</h4><span id="simControllerCounts"></span></div>
+              <div class="sim-live-invert-label" data-i18n="sim.controller.invert">Invert</div>
+              <div id="simLiveRows"></div>
+              <label class="sim-deadzone-row" for="simDeadzone"><span data-i18n="sim.controller.deadzone">Deadzone</span><input id="simDeadzone" type="range" min="0" max="20" step="0.5"><output id="simDeadzoneValue">3%</output></label>
+            </section>
+            <div class="sim-axis-settings" id="simAxisSettings"></div>
+          </div>
+        </div>
+      </div>
+    </section>
     <canvas id="simMap" class="sim-map" aria-label="Raja kaart" data-i18n-aria="sim.map"></canvas>
     <div class="sim-hud">
       <div><span data-i18n="sim.timer">Lennuaeg</span><b id="simTime">00:00.0</b></div>
@@ -112,14 +149,14 @@
       <div><span data-i18n="sim.points">Punktid</span><b id="simPoints">0 / 0</b></div>
       <div class="sim-next"><span data-i18n="sim.next">Järgmine punkt</span><b id="simNext">–</b></div>
     </div>
-    <div class="sim-controls" data-i18n="sim.controls">W A S D liikumine · Q/E pööramine · R/F tõus/laskumine · Shift kiirendus · Tühik paus · Esc välju</div>
+    <div class="sim-controls" id="simControlHint" data-i18n="sim.controls">W A S D liikumine · Q/E pööramine · R/F tõus/laskumine · Shift kiirendus · Tühik paus · Esc välju</div>
   </section>
 
   <input type="file" id="fileIn" accept=".json,application/json" hidden>
 
-  <script src="js/i18n.js?v=dev"></script>
+  <script src="js/i18n.js?v=settings-controls-1"></script>
   <script src="js/elements.js?v=dev"></script>
-  <script src="js/simulator.js?v=dev"></script>
-  <script src="js/app.js?v=dev"></script>
+  <script src="js/simulator.js?v=settings-controls-1"></script>
+  <script src="js/app.js?v=settings-controls-1"></script>
 </body>
 </html>

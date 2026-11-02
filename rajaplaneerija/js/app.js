@@ -37,6 +37,11 @@
   const simUi = {
     root: $('#simOverlay'), pause: $('#simPause'), status: $('#simStatus'), time: $('#simTime'), speed: $('#simSpeed'),
     alt: $('#simAltitude'), distance: $('#simDistance'), heading: $('#simHeading'), points: $('#simPoints'), next: $('#simNext'),
+    settingsOpen: $('#simSettingsOpen'), settings: $('#simSettings'), settingsClose: $('#simSettingsClose'),
+    controllerState: $('#simControllerState'), controllerSelect: $('#simControllerSelect'), controllerRescan: $('#simControllerRescan'),
+    controllerCounts: $('#simControllerCounts'), radioSettings: $('#simRadioSettings'), keyboardHelp: $('#simKeyboardHelp'),
+    liveRows: $('#simLiveRows'), deadzone: $('#simDeadzone'), deadzoneValue: $('#simDeadzoneValue'), axisSettings: $('#simAxisSettings'),
+    controlHint: $('#simControlHint'),
   };
   const simulator = new FlightSimulator($('#simCanvas'), $('#simMap'), simUi, simulationScene, simulationLabels, () => {});
 
@@ -44,6 +49,13 @@
     return {
       pause: tr('sim.pause'), resume: tr('sim.resume'), paused: tr('sim.paused'), ready: tr('sim.ready'),
       flying: tr('sim.flying'), complete: tr('sim.complete'),
+      controllerNone: tr('sim.controller.none'), controllerConnected: tr('sim.controller.connected'),
+      controllerUnsupported: tr('sim.controller.unsupported'), controllerDevice: tr('sim.controller.deviceOption'),
+      controllerAxes: tr('sim.controller.axes'), controllerButtons: tr('sim.controller.buttons'),
+      controllerSelectedAxes: tr('sim.controller.selectedAxes'), controllerSelectedButtons: tr('sim.controller.selectedButtons'),
+      channelThrottle: tr('sim.channel.throttle'), channelRoll: tr('sim.channel.roll'), channelPitch: tr('sim.channel.pitch'), channelYaw: tr('sim.channel.yaw'),
+      settingsKeyboardHint: tr('sim.settings.keyboardHint'), settingsControllerHint: tr('sim.settings.controllerHint'),
+      settingsNoAxes: tr('sim.settings.noAxes'), controlsHint: tr('sim.controls'),
     };
   }
   function simulationScene() {
@@ -1456,6 +1468,12 @@
   });
   $('#fileIn').addEventListener('change', e => { if (e.target.files[0]) openFile(e.target.files[0]); e.target.value = ''; });
   $('#simPause').addEventListener('click', () => simulator.pause());
+  $('#simSettingsOpen').addEventListener('click', () => simulator.openSettings());
+  $('#simSettingsClose').addEventListener('click', () => simulator.closeSettings());
+  $('#simControllerRescan').addEventListener('click', () => simulator.scanGamepads(true));
+  $('#simControllerSelect').addEventListener('change', e => simulator.selectGamepad(e.target.value));
+  document.querySelectorAll('input[name="simControlMode"]').forEach(input => input.addEventListener('change', e => simulator.setControlMode(e.target.value)));
+  $('#simDeadzone').addEventListener('input', e => simulator.setDeadzone(Number(e.target.value) / 100));
   $('#simRestart').addEventListener('click', () => simulator.start());
   $('#simClose').addEventListener('click', () => simulator.close());
   $('#speedSel').addEventListener('change', e => { anim.mult = +e.target.value; });
@@ -1513,6 +1531,7 @@
     $('#playBtn').textContent = tr(anim.playing ? 'btn.stop' : 'btn.play');
     $('#topBtn').textContent = tr(view.pitch > 80 ? 'btn.top25' : 'btn.top');
     $('#simPause').textContent = tr(simulator.paused ? 'sim.resume' : 'sim.pause');
+    if (simulator.settingsOpen) simulator.refreshSettings();
   }
   function setLang(l) {
     if (!I18N[l] || l === LANG) return;

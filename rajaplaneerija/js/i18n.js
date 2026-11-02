@@ -489,6 +489,13 @@ Object.assign(I18N.et, {
   'sim.altitude': 'Kõrgus', 'sim.distance': 'Läbitud', 'sim.heading': 'Suund', 'sim.points': 'Punktid',
   'sim.next': 'Järgmine punkt', 'sim.complete': 'Rada läbitud · maandu stardiplatsile',
   'sim.flying': 'Lend käib', 'sim.controls': 'W/S edasi-tagasi · A/D külgsuunas · Q/E pööramine · R/F tõus/laskumine · Shift kiirendus · tühik paus · Esc välju',
+  'sim.controller.open': 'Pult', 'sim.controller.close': 'Sulge', 'sim.controller.title': 'Juhtpuldi tuvastus',
+  'sim.controller.device': 'Tuvastatud pult', 'sim.controller.rescan': 'Otsi uuesti',
+  'sim.controller.none': 'Pulti ei tuvastatud', 'sim.controller.connected': 'Pult ühendatud',
+  'sim.controller.unsupported': 'See brauser ei toeta Gamepad-liidest', 'sim.controller.deviceOption': 'Juhtpult',
+  'sim.controller.axes': 'Kangid', 'sim.controller.buttons': 'Nupud',
+  'sim.controller.hint': 'Ühenda pult USB-kaabliga ja lülita see sisse. Kui pulti ei ilmu, klõpsa simulaatori aknal ja liiguta kangi või vajuta nuppu.',
+  'sim.controller.browser': 'Tuvastus kasutab brauseri Gamepad-liidest. Kalibreerimine lisandub järgmises etapis.',
 });
 Object.assign(I18N.en, {
   'sim.launch': 'FPV simulator', 'sim.title': 'FPV flight simulator', 'sim.view': 'Drone FPV view', 'sim.map': 'Flight path map',
@@ -497,6 +504,13 @@ Object.assign(I18N.en, {
   'sim.altitude': 'Altitude', 'sim.distance': 'Distance', 'sim.heading': 'Heading', 'sim.points': 'Waypoints',
   'sim.next': 'Next waypoint', 'sim.complete': 'Route complete · land on the start pad',
   'sim.flying': 'Flying', 'sim.controls': 'W/S forward/back · A/D strafe · Q/E turn · R/F climb/descend · Shift boost · Space pause · Esc exit',
+  'sim.controller.open': 'Controller', 'sim.controller.close': 'Close', 'sim.controller.title': 'Controller detection',
+  'sim.controller.device': 'Detected controller', 'sim.controller.rescan': 'Rescan',
+  'sim.controller.none': 'No controller detected', 'sim.controller.connected': 'Controller connected',
+  'sim.controller.unsupported': 'This browser does not support the Gamepad API', 'sim.controller.deviceOption': 'Controller',
+  'sim.controller.axes': 'Axes', 'sim.controller.buttons': 'Buttons',
+  'sim.controller.hint': 'Connect the controller with USB and turn it on. If it does not appear, focus the simulator and move a stick or press a button.',
+  'sim.controller.browser': 'Detection uses the browser Gamepad API. Calibration will be added in a later step.',
 });
 Object.assign(I18N.fi, {
   'sim.launch': 'FPV-simulaattori', 'sim.title': 'FPV-lentosimulaattori', 'sim.view': 'Droonin FPV-näkymä', 'sim.map': 'Lentoreitin kartta',
@@ -505,6 +519,13 @@ Object.assign(I18N.fi, {
   'sim.altitude': 'Korkeus', 'sim.distance': 'Matka', 'sim.heading': 'Suunta', 'sim.points': 'Pisteet',
   'sim.next': 'Seuraava piste', 'sim.complete': 'Rata suoritettu · laskeudu lähtöalustalle',
   'sim.flying': 'Lento käynnissä', 'sim.controls': 'W/S eteen/taakse · A/D sivulle · Q/E käänny · R/F nouse/laske · Shift tehostus · välilyönti tauko · Esc poistu',
+  'sim.controller.open': 'Ohjain', 'sim.controller.close': 'Sulje', 'sim.controller.title': 'Ohjaimen tunnistus',
+  'sim.controller.device': 'Tunnistettu ohjain', 'sim.controller.rescan': 'Etsi uudelleen',
+  'sim.controller.none': 'Ohjainta ei tunnistettu', 'sim.controller.connected': 'Ohjain yhdistetty',
+  'sim.controller.unsupported': 'Tämä selain ei tue Gamepad-rajapintaa', 'sim.controller.deviceOption': 'Ohjain',
+  'sim.controller.axes': 'Akselit', 'sim.controller.buttons': 'Painikkeet',
+  'sim.controller.hint': 'Liitä ohjain USB-kaapelilla ja käynnistä se. Jos ohjain ei näy, aktivoi simulaattorin ikkuna ja liikuta vipua tai paina painiketta.',
+  'sim.controller.browser': 'Tunnistus käyttää selaimen Gamepad-rajapintaa. Kalibrointi lisätään myöhemmin.',
 });
 
 const LANG_KEY = 'droonirajaplaneerija.keel';
