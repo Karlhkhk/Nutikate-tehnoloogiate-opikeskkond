@@ -54,8 +54,8 @@
       controllerAxes: tr('sim.controller.axes'), controllerButtons: tr('sim.controller.buttons'),
       controllerSelectedAxes: tr('sim.controller.selectedAxes'), controllerSelectedButtons: tr('sim.controller.selectedButtons'),
       channelThrottle: tr('sim.channel.throttle'), channelRoll: tr('sim.channel.roll'), channelPitch: tr('sim.channel.pitch'), channelYaw: tr('sim.channel.yaw'),
-      settingsKeyboardHint: tr('sim.settings.keyboardHint'), settingsControllerHint: tr('sim.settings.controllerHint'),
-      settingsNoAxes: tr('sim.settings.noAxes'), controlsHint: tr('sim.controls'),
+      settingsControllerHint: tr('sim.settings.controllerHint'), settingsNoAxes: tr('sim.settings.noAxes'),
+      controlsHint: tr('sim.controls'), invertLabel: tr('sim.controller.invert'),
     };
   }
   function simulationScene() {
@@ -1470,6 +1470,7 @@
   $('#simPause').addEventListener('click', () => simulator.pause());
   $('#simSettingsOpen').addEventListener('click', () => simulator.openSettings());
   $('#simSettingsClose').addEventListener('click', () => simulator.closeSettings());
+  $('#simSettings').addEventListener('click', e => { if (e.target === e.currentTarget) simulator.closeSettings(); });
   $('#simControllerRescan').addEventListener('click', () => simulator.scanGamepads(true));
   $('#simControllerSelect').addEventListener('change', e => simulator.selectGamepad(e.target.value));
   document.querySelectorAll('input[name="simControlMode"]').forEach(input => input.addEventListener('change', e => simulator.setControlMode(e.target.value)));
@@ -1531,6 +1532,7 @@
     $('#playBtn').textContent = tr(anim.playing ? 'btn.stop' : 'btn.play');
     $('#topBtn').textContent = tr(view.pitch > 80 ? 'btn.top25' : 'btn.top');
     $('#simPause').textContent = tr(simulator.paused ? 'sim.resume' : 'sim.pause');
+    simulator.updateControlHint();
     if (simulator.settingsOpen) simulator.refreshSettings();
   }
   function setLang(l) {

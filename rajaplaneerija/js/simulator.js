@@ -152,6 +152,13 @@ class FlightSimulator {
       if (!this.active) return;
       if (this.settingsOpen) {
         if (e.key === 'Escape') { e.preventDefault(); this.closeSettings(); }
+        if (e.key === 'Tab') {
+          const focusable = [...this.ui.settings.querySelectorAll('button:not(:disabled), input:not(:disabled), select:not(:disabled)')];
+          if (!focusable.length) { e.preventDefault(); return; }
+          const first = focusable[0], last = focusable[focusable.length - 1];
+          if (e.shiftKey && document.activeElement === first) { e.preventDefault(); last.focus(); }
+          else if (!e.shiftKey && document.activeElement === last) { e.preventDefault(); first.focus(); }
+        }
         return;
       }
       if (['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', ' '].includes(e.key)) e.preventDefault();
@@ -271,7 +278,7 @@ class FlightSimulator {
         const fill = document.createElement('i'); fill.className = 'sim-live-fill'; track.append(fill);
         const value = document.createElement('b'); value.className = 'sim-live-value';
         const invertLabel = document.createElement('label'); invertLabel.className = 'sim-live-invert';
-        const invert = document.createElement('input'); invert.type = 'checkbox'; invert.setAttribute('aria-label', `${labels['channel' + key[0].toUpperCase() + key.slice(1)]} · ${this.getLabels().invertLabel}`);
+        const invert = document.createElement('input'); invert.type = 'checkbox'; invert.setAttribute('aria-label', `${labels['channel' + key[0].toUpperCase() + key.slice(1)]} · ${labels.invertLabel}`);
         invert.addEventListener('change', () => this.setChannelInvert(key, invert.checked));
         invertLabel.append(invert);
         row.append(name, track, value, invertLabel);
@@ -299,6 +306,8 @@ class FlightSimulator {
     }
     this.ui.liveRows.querySelectorAll('.sim-live-row').forEach(row => {
       const key = row.dataset.channel;
+      row.querySelector('.sim-live-name').textContent = labels['channel' + key[0].toUpperCase() + key.slice(1)];
+      row.querySelector('.sim-live-invert input').setAttribute('aria-label', `${labels['channel' + key[0].toUpperCase() + key.slice(1)]} · ${labels.invertLabel}`);
       row.querySelector('.sim-live-invert input').checked = this.controls.channels[key].invert;
     });
     this.saveControlSettings();
@@ -312,10 +321,12 @@ class FlightSimulator {
 
   readControllerInput() {
     const values = { throttle: 0, roll: 0, pitch: 0, yaw: 0 };
+    this.gamepadAvailable = false;
     if (this.controls.mode !== 'controller' || this.gamepadIndex == null || !navigator.getGamepads) return values;
     try {
       const pad = navigator.getGamepads()[this.gamepadIndex];
       if (!pad || !pad.connected) return values;
+      this.gamepadAvailable = true;
       for (const key of Object.keys(values)) {
         const mapping = this.controls.channels[key];
         let value = Number(pad.axes[mapping.axis]) || 0;
@@ -514,6 +525,7 @@ class FlightSimulator {
     const vertical = controller ? controller.throttle : Number(k.has('r')) - Number(k.has('f'));
     const turn = controller ? controller.yaw : Number(k.has('e') || k.has('arrowright')) - Number(k.has('q') || k.has('arrowleft'));
     const boost = !controller && k.has('shift') ? 1.8 : 1;
+    if (controller && !this.gamepadAvailable) this.vel = [0, 0, 0];
     const accel = 4.2, drag = Math.exp(-1.5 * dt);
     this.yaw += turn * 1.65 * dt;
     const fx = Math.cos(this.yaw), fy = Math.sin(this.yaw), rx = -fy, ry = fx;

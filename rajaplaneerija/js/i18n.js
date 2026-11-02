@@ -496,6 +496,15 @@ Object.assign(I18N.et, {
   'sim.controller.axes': 'Kangid', 'sim.controller.buttons': 'Nupud',
   'sim.controller.hint': 'Ühenda pult USB-kaabliga ja lülita see sisse. Kui pulti ei ilmu, klõpsa simulaatori aknal ja liiguta kangi või vajuta nuppu.',
   'sim.controller.browser': 'Tuvastus kasutab brauseri Gamepad-liidest. Kalibreerimine lisandub järgmises etapis.',
+  'sim.settings.open': 'Seaded', 'sim.settings.title': 'Seaded', 'sim.settings.subtitle': 'Kontrolli ja seadmed',
+  'sim.settings.close': 'Sulge', 'sim.settings.categories': 'Seadete kategooriad', 'sim.settings.controls': 'Controls',
+  'sim.settings.controlMethod': 'Juhtimisviis', 'sim.settings.keyboard': 'Klaviatuur', 'sim.settings.controller': 'Pult',
+  'sim.settings.keyboardHelp': 'Klaviatuuriga juhtimine on aktiivne.',
+  'sim.settings.controllerHint': 'Pult juhib drooni otse: throttle muudab kõrgust, roll liigub küljele, pitch edasi-tagasi ja yaw pöörab. Telgede järjekorda ja suunda saab muuta allpool.',
+  'sim.settings.noAxes': 'Telgi ei leitud',
+  'sim.controller.selectedAxes': 'Telgi', 'sim.controller.selectedButtons': 'Nupud', 'sim.controller.invert': 'Invert',
+  'sim.controller.liveInput': 'Live input', 'sim.controller.deadzone': 'Tühikäigutsoon',
+  'sim.channel.throttle': 'Throttle', 'sim.channel.roll': 'Roll', 'sim.channel.pitch': 'Pitch', 'sim.channel.yaw': 'Yaw',
 });
 Object.assign(I18N.en, {
   'sim.launch': 'FPV simulator', 'sim.title': 'FPV flight simulator', 'sim.view': 'Drone FPV view', 'sim.map': 'Flight path map',
@@ -511,6 +520,15 @@ Object.assign(I18N.en, {
   'sim.controller.axes': 'Axes', 'sim.controller.buttons': 'Buttons',
   'sim.controller.hint': 'Connect the controller with USB and turn it on. If it does not appear, focus the simulator and move a stick or press a button.',
   'sim.controller.browser': 'Detection uses the browser Gamepad API. Calibration will be added in a later step.',
+  'sim.settings.open': 'Settings', 'sim.settings.title': 'Settings', 'sim.settings.subtitle': 'Controls and devices',
+  'sim.settings.close': 'Close', 'sim.settings.categories': 'Settings categories', 'sim.settings.controls': 'Controls',
+  'sim.settings.controlMethod': 'Control method', 'sim.settings.keyboard': 'Keyboard', 'sim.settings.controller': 'Controller',
+  'sim.settings.keyboardHelp': 'Keyboard controls are active.',
+  'sim.settings.controllerHint': 'The controller directly flies the drone: throttle changes altitude, roll moves sideways, pitch moves forward/back, and yaw turns. Change axis order and direction below.',
+  'sim.settings.noAxes': 'No axes found',
+  'sim.controller.selectedAxes': 'Axes', 'sim.controller.selectedButtons': 'Buttons', 'sim.controller.invert': 'Invert',
+  'sim.controller.liveInput': 'Live input', 'sim.controller.deadzone': 'Dead zone',
+  'sim.channel.throttle': 'Throttle', 'sim.channel.roll': 'Roll', 'sim.channel.pitch': 'Pitch', 'sim.channel.yaw': 'Yaw',
 });
 Object.assign(I18N.fi, {
   'sim.launch': 'FPV-simulaattori', 'sim.title': 'FPV-lentosimulaattori', 'sim.view': 'Droonin FPV-näkymä', 'sim.map': 'Lentoreitin kartta',
@@ -526,6 +544,15 @@ Object.assign(I18N.fi, {
   'sim.controller.axes': 'Akselit', 'sim.controller.buttons': 'Painikkeet',
   'sim.controller.hint': 'Liitä ohjain USB-kaapelilla ja käynnistä se. Jos ohjain ei näy, aktivoi simulaattorin ikkuna ja liikuta vipua tai paina painiketta.',
   'sim.controller.browser': 'Tunnistus käyttää selaimen Gamepad-rajapintaa. Kalibrointi lisätään myöhemmin.',
+  'sim.settings.open': 'Asetukset', 'sim.settings.title': 'Asetukset', 'sim.settings.subtitle': 'Ohjaus ja laitteet',
+  'sim.settings.close': 'Sulje', 'sim.settings.categories': 'Asetusten kategoriat', 'sim.settings.controls': 'Controls',
+  'sim.settings.controlMethod': 'Ohjaustapa', 'sim.settings.keyboard': 'Näppäimistö', 'sim.settings.controller': 'Ohjain',
+  'sim.settings.keyboardHelp': 'Näppäimistöohjaus on käytössä.',
+  'sim.settings.controllerHint': 'Ohjain lentää dronea suoraan: throttle muuttaa korkeutta, roll liikkuu sivulle, pitch eteen/taakse ja yaw kääntää. Voit vaihtaa akseleiden järjestystä ja suuntaa alta.',
+  'sim.settings.noAxes': 'Akselia ei löytynyt',
+  'sim.controller.selectedAxes': 'Akselit', 'sim.controller.selectedButtons': 'Painikkeet', 'sim.controller.invert': 'Käännä',
+  'sim.controller.liveInput': 'Live input', 'sim.controller.deadzone': 'Kuollut alue',
+  'sim.channel.throttle': 'Throttle', 'sim.channel.roll': 'Roll', 'sim.channel.pitch': 'Pitch', 'sim.channel.yaw': 'Yaw',
 });
 
 const LANG_KEY = 'droonirajaplaneerija.keel';
