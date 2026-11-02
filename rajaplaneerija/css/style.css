@@ -84,6 +84,52 @@ button:disabled { opacity: .45; cursor: default; }
 .hint.warn { background: #fef3c7; border-color: #f59e0b; color: #92400e; }
 #profile { width: 100%; height: 100%; display: block; cursor: pointer; }
 
+/* Klaviatuuriga juhitav FPV-simulaator */
+.sim-launch { border-color: var(--accent); color: var(--accent); font-weight: 600; }
+.sim-overlay {
+  position: fixed; inset: 0; z-index: 30; overflow: hidden; color: #f8fafc;
+  background: #0f172a; font-variant-numeric: tabular-nums;
+}
+.sim-overlay[hidden] { display: none; }
+#simCanvas { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
+.sim-reticle {
+  position: absolute; top: 50%; left: 50%; width: 22px; height: 22px; transform: translate(-50%, -50%);
+  pointer-events: none; opacity: .82;
+}
+.sim-reticle::before, .sim-reticle::after { content: ""; position: absolute; background: #0f172a; border-radius: 1px; }
+.sim-reticle::before { width: 2px; height: 22px; left: 10px; top: 0; }
+.sim-reticle::after { height: 2px; width: 22px; top: 10px; left: 0; }
+.sim-head {
+  position: absolute; top: 0; left: 0; right: 0; display: flex; align-items: center; justify-content: space-between;
+  gap: 12px; padding: 12px 16px; background: linear-gradient(rgba(15,23,42,.88), rgba(15,23,42,0));
+}
+.sim-head > div:first-child { display: flex; align-items: center; gap: 12px; }
+.sim-head strong { font-size: 16px; }
+.sim-head span { color: #cbd5e1; font-size: 13px; }
+.sim-actions { display: flex; gap: 6px; }
+.sim-actions button { background: rgba(248,250,252,.94); color: #0f172a; }
+.sim-map {
+  position: absolute; top: 70px; right: 16px; width: min(23vw, 260px); height: min(23vw, 190px);
+  border: 1px solid rgba(255,255,255,.7); border-radius: 8px; box-shadow: 0 4px 20px #0f172a66;
+}
+.sim-hud {
+  position: absolute; left: 50%; bottom: 54px; transform: translateX(-50%); display: flex; flex-wrap: wrap;
+  justify-content: center; gap: 5px; max-width: min(900px, calc(100vw - 24px)); padding: 8px;
+  border: 1px solid #ffffff40; border-radius: 10px; background: rgba(15,23,42,.82); backdrop-filter: blur(8px);
+}
+.sim-hud > div { min-width: 82px; padding: 3px 8px; border-right: 1px solid #ffffff28; }
+.sim-hud > div:last-child { border-right: 0; }
+.sim-hud span, .sim-hud b { display: block; }
+.sim-hud span { color: #cbd5e1; font-size: 10px; text-transform: uppercase; letter-spacing: .04em; }
+.sim-hud b { margin-top: 3px; font-size: 16px; }
+.sim-hud .sim-next { min-width: 150px; max-width: 250px; }
+.sim-hud .sim-next b { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.sim-controls {
+  position: absolute; left: 50%; bottom: 12px; transform: translateX(-50%); max-width: calc(100vw - 24px);
+  padding: 6px 10px; border-radius: 6px; background: rgba(15,23,42,.72); color: #e2e8f0;
+  font-size: 11px; text-align: center; white-space: nowrap;
+}
+
 /* Paremal paneel */
 .panel { background: var(--surface); border-left: 1px solid var(--line); display: flex; flex-direction: column; min-height: 0; }
 .tabs { display: flex; border-bottom: 1px solid var(--line); overflow-x: auto; scrollbar-width: none; }
@@ -164,6 +210,20 @@ table.plan td.num { text-align: right; font-variant-numeric: tabular-nums; }
   .palette { border-right: 0; border-bottom: 1px solid var(--line); }
   .pal-grid { grid-template-columns: repeat(auto-fill, minmax(84px, 1fr)); }
   .panel { border-left: 0; border-top: 1px solid var(--line); }
+}
+
+@media (max-width: 700px) {
+  .sim-head { align-items: flex-start; }
+  .sim-head > div:first-child { align-items: flex-start; flex-direction: column; gap: 2px; }
+  .sim-head strong { font-size: 14px; }
+  .sim-actions { flex-wrap: wrap; justify-content: flex-end; }
+  .sim-actions button { padding: 5px 7px; font-size: 12px; }
+  .sim-map { top: 90px; right: 10px; width: 32vw; height: 26vw; }
+  .sim-hud { bottom: 65px; gap: 2px; }
+  .sim-hud > div { min-width: 65px; padding: 2px 5px; }
+  .sim-hud b { font-size: 13px; }
+  .sim-hud span { font-size: 8px; }
+  .sim-controls { white-space: normal; bottom: 8px; font-size: 10px; }
 }
 
 @media print {

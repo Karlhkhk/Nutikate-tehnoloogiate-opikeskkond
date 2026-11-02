@@ -34,6 +34,45 @@
   let W = 0, H = 0, PW = 0, PH = 0, dpr = 1;
   let undoS = [], redoS = [], editing = false;
 
+  const simUi = {
+    root: $('#simOverlay'), pause: $('#simPause'), status: $('#simStatus'), time: $('#simTime'), speed: $('#simSpeed'),
+    alt: $('#simAltitude'), distance: $('#simDistance'), heading: $('#simHeading'), points: $('#simPoints'), next: $('#simNext'),
+  };
+  const simulator = new FlightSimulator($('#simCanvas'), $('#simMap'), simUi, simulationScene, simulationLabels, () => {});
+
+  function simulationLabels() {
+    return {
+      pause: tr('sim.pause'), resume: tr('sim.resume'), paused: tr('sim.paused'), ready: tr('sim.ready'),
+      flying: tr('sim.flying'), complete: tr('sim.complete'),
+    };
+  }
+  function simulationScene() {
+    const route = [], seen = new Set();
+    for (const q of flight.marks) {
+      const m = q.mark;
+      if (seen.has(m.wp)) continue;
+      seen.add(m.wp);
+      const before = sampleAt(Math.max(0, q.s - 0.15)).p, after = sampleAt(Math.min(flight.length, q.s + 0.15)).p;
+      route.push({
+        kind: m.kind, position: q.p.slice(), opening: m.o || null,
+        direction: sub(after, before), label: wpLabel(state.path[m.wp], m.wp),
+      });
+    }
+    if (route.length && route[route.length - 1].kind !== 'pad') {
+      const end = flight.pts[flight.pts.length - 1]?.p;
+      if (end) route.push({ kind: 'pad', position: end.slice(), opening: null, direction: [0, 0, 0], label: tr('act.land') });
+    }
+    return {
+      hall: { ...state.hall }, elements: state.elements.map(worldPrims),
+      path: flight.pts.map(q => q.p), route, start: flight.pts[0]?.p.slice() || [state.hall.w / 2, state.hall.l / 2, 0.15],
+    };
+  }
+  function startSimulation() {
+    if (!flight || flight.length < 0.01) { alert(tr('chk.nopath')); return; }
+    if (anim.playing) setPlaying(false);
+    simulator.start();
+  }
+
   // ---------- olek ----------
   function defaultState() {
     return { name: tr('track.new'), hall: { w: 20, l: 12, h: 5, grid: 0.5 }, drone: 'codrone', cruise: 1.0, elements: [], path: [] };
@@ -43,8 +82,17 @@
   function V(el) { return T(el).variants[el.v] || T(el).variants[0]; }
   function elZ(el) { return el.z != null ? el.z : V(el).z; }
   // Inglise keeles on elemendi nimi kataloogi nimi (või nameEn, kui kataloogi nimi on tootekood)
-  const typeName = t => LANG === 'en' ? t.nameEn || t.en : t.name;
-  const groupName = g => LANG === 'en' ? GROUPS_EN[g] || g : g;
+  const TYPE_NAMES_FI = {
+    'Blade flag': 'Lippu', 'Landing pad': 'Laskeutumisalusta', 'Circular ring': 'Rengas',
+    'Stacked loop': 'Päällekkäiset renkaat', 'Tri-gates': 'Kolmoisrenkaat',
+    'Horizontal round gate': 'Vaakasuora rengasportti', 'Horizontal gates': 'Vaakaportit',
+    'Arch gate': 'Kaariportti', 'Square gate': 'Neliöportti', 'Offset gate': 'Korkeusportti',
+    'Gravity gate': 'Painovoimaportti', 'Cube gate': 'Kuutiportti', 'Tunnel': 'Tunneli',
+    'Ground tunnel': 'Maatunneli', 'Shaft': 'Kuilu', 'Net tunnel': 'Verkkotunneli',
+  };
+  const GROUPS_FI = { Märgid: 'Merkit', Rõngad: 'Renkaat', Väravad: 'Portit', Tunnelid: 'Tunnelit' };
+  const typeName = t => LANG === 'en' ? t.nameEn || t.en : LANG === 'fi' ? TYPE_NAMES_FI[t.nameEn || t.en] || t.en : t.name;
+  const groupName = g => LANG === 'en' ? GROUPS_EN[g] || g : LANG === 'fi' ? GROUPS_FI[g] || g : g;
 
   function wpDefaults(kind) {
     if (kind === 'pylon') return { side: 'left', turn: 'pass', hover: 0 };
@@ -1402,10 +1450,14 @@
       case 'top': toggleTop(); break;
       case 'fit': fitView(); requestRender(); break;
       case 'play': setPlaying(!anim.playing); break;
+      case 'sim': startSimulation(); break;
       case 'png': exportPng(); break;
     }
   });
   $('#fileIn').addEventListener('change', e => { if (e.target.files[0]) openFile(e.target.files[0]); e.target.value = ''; });
+  $('#simPause').addEventListener('click', () => simulator.pause());
+  $('#simRestart').addEventListener('click', () => simulator.start());
+  $('#simClose').addEventListener('click', () => simulator.close());
   $('#speedSel').addEventListener('change', e => { anim.mult = +e.target.value; });
   $('#trackName').addEventListener('change', e => { checkpoint(); state.name = e.target.value.trim() || tr('track.untitled'); save(); });
   const tsel = $('#templateSel');
@@ -1460,6 +1512,7 @@
     document.querySelectorAll('#langSeg button').forEach(b => b.classList.toggle('on', b.dataset.lang === LANG));
     $('#playBtn').textContent = tr(anim.playing ? 'btn.stop' : 'btn.play');
     $('#topBtn').textContent = tr(view.pitch > 80 ? 'btn.top25' : 'btn.top');
+    $('#simPause').textContent = tr(simulator.paused ? 'sim.resume' : 'sim.pause');
   }
   function setLang(l) {
     if (!I18N[l] || l === LANG) return;
@@ -1477,6 +1530,7 @@
     W = r.width; H = r.height; PW = q.width; PH = q.height;
     canvas.width = Math.round(W * dpr); canvas.height = Math.round(H * dpr);
     prof.width = Math.round(PW * dpr); prof.height = Math.round(PH * dpr);
+    if (simulator.active) simulator.resize();
     if (first) fitView();
     requestRender();
   }

@@ -55,11 +55,14 @@
       </select>
     </div>
 
+    <button data-act="sim" class="sim-launch" data-i18n="sim.launch">FPV-simulaator</button>
+
     <button data-act="png" title="Salvesta pilt (PNG)" data-i18n-title="btn.png.t">PNG</button>
 
     <div class="seg lang" id="langSeg" role="group" aria-label="Keel" data-i18n-aria="lang.aria">
       <button data-lang="et" lang="et">EST</button>
       <button data-lang="en" lang="en">ENG</button>
+      <button data-lang="fi" lang="fi">FIN</button>
     </div>
   </header>
 
@@ -88,10 +91,35 @@
     </aside>
   </main>
 
+  <section class="sim-overlay" id="simOverlay" hidden aria-hidden="true" aria-label="FPV-simulaator" data-i18n-aria="sim.title">
+    <canvas id="simCanvas" aria-label="FPV-lennuvaade" data-i18n-aria="sim.view"></canvas>
+    <div class="sim-reticle" aria-hidden="true"></div>
+    <header class="sim-head">
+      <div><strong data-i18n="sim.title">FPV-simulaator</strong><span id="simStatus" data-i18n="sim.ready">Valmis</span></div>
+      <div class="sim-actions">
+        <button id="simPause" data-i18n="sim.pause">Peata</button>
+        <button id="simRestart" data-i18n="sim.restart">Alusta uuesti</button>
+        <button id="simClose" data-i18n="sim.exit">Välju</button>
+      </div>
+    </header>
+    <canvas id="simMap" class="sim-map" aria-label="Raja kaart" data-i18n-aria="sim.map"></canvas>
+    <div class="sim-hud">
+      <div><span data-i18n="sim.timer">Lennuaeg</span><b id="simTime">00:00.0</b></div>
+      <div><span data-i18n="sim.speed">Kiirus</span><b id="simSpeed">0.0 m/s</b></div>
+      <div><span data-i18n="sim.altitude">Kõrgus</span><b id="simAltitude">0.0 m</b></div>
+      <div><span data-i18n="sim.distance">Läbitud</span><b id="simDistance">0.0 m</b></div>
+      <div><span data-i18n="sim.heading">Suund</span><b id="simHeading">0°</b></div>
+      <div><span data-i18n="sim.points">Punktid</span><b id="simPoints">0 / 0</b></div>
+      <div class="sim-next"><span data-i18n="sim.next">Järgmine punkt</span><b id="simNext">–</b></div>
+    </div>
+    <div class="sim-controls" data-i18n="sim.controls">W A S D liikumine · Q/E pööramine · R/F tõus/laskumine · Shift kiirendus · Tühik paus · Esc välju</div>
+  </section>
+
   <input type="file" id="fileIn" accept=".json,application/json" hidden>
 
   <script src="js/i18n.js?v=dev"></script>
   <script src="js/elements.js?v=dev"></script>
+  <script src="js/simulator.js?v=dev"></script>
   <script src="js/app.js?v=dev"></script>
 </body>
 </html>

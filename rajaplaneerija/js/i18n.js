@@ -388,8 +388,127 @@ const I18N = {
   },
 };
 
+// Soomekeelne kasutajaliides. Ingliskeelne sõnastik annab varu nendele
+// kataloogitekstidele, millel pole eraldi kasutajaliidese tõlget.
+I18N.fi = {
+  ...I18N.en,
+  'app.title': 'Drooniradan suunnittelija', 'locale': 'fi-FI',
+  'lang.aria': 'Kieli', 'track.name': 'Radan nimi', 'track.new': 'Uusi rata',
+  'track.untitled': 'Nimetön rata', 'track.instructor': 'Ohjaajan rata',
+  'track.n': 'Rata {n}', 'file.base': 'droonirata', 'file.plan': 'lentosuunnitelma', 'file.mat': 'materiaalit',
+  'btn.new': 'Uusi', 'btn.new.t': 'Uusi tyhjä rata', 'btn.open': 'Avaa tiedosto…',
+  'btn.open.t': 'Avaa ratatiedosto (.json) tietokoneelta', 'btn.save': 'Tallenna',
+  'btn.save.t': 'Tallenna rata luetteloon ”Omat radat” (Ctrl+S)', 'btn.saved': 'Tallennettu ✓',
+  'btn.updated': 'Päivitetty ✓', 'tracks': 'Radat…', 'tracks.t': 'Avaa tallennettu rata tai luettelokokonaisuus',
+  'tracks.mine': 'Omat radat', 'tracks.instructor': 'Ohjaajan radat', 'tracks.catalog': 'Luettelokokonaisuudet',
+  'mode.aria': 'Tila', 'mode.build': 'Rakenna', 'mode.build.t': 'Sijoita ja siirrä elementtejä (B)',
+  'mode.path': 'Lentoreitti', 'mode.path.t': 'Napsauta elementtejä lentojärjestyksessä (L)',
+  'btn.undo.t': 'Kumoa (Ctrl+Z)', 'btn.redo.t': 'Tee uudelleen (Ctrl+Y)',
+  'btn.rotL.t': 'Kierrä näkymää vasemmalle ( [ )', 'btn.rotR.t': 'Kierrä näkymää oikealle ( ] )',
+  'btn.top': 'Ylhäältä', 'btn.top25': '2,5D', 'btn.top.t': 'Ylhäältä / 2,5D (T)',
+  'btn.fit': 'Sovita', 'btn.fit.t': 'Sovita halli näytölle (F)', 'btn.play': '▶ Toista',
+  'btn.stop': '■ Pysäytä', 'btn.play.t': 'Toista lento (P)', 'speed.t': 'Animaation nopeus',
+  'btn.png.t': 'Tallenna kuva (PNG)', 'palette.aria': 'Radan elementit',
+  'palette.item.t': '{name} – vedä halliin tai napsauta', 'scene.aria': 'Droonirata 2,5D-näkymässä',
+  'profile.aria': 'Lentokorkeusprofiili', 'profile.empty': 'Korkeusprofiili näkyy tässä, kun lentoreitti on valmis.',
+  'tab.props': 'Ominaisuudet', 'tab.path': 'Lentoreitti', 'tab.check': 'Tarkistus',
+  'tab.mat': 'Materiaalit', 'tab.export': 'Vienti',
+  'hint.path': '<b>Lentoreitti:</b> napsauta elementtejä lentojärjestyksessä · lattian napsautus lisää vapaan pisteen · uusi piste lisätään valitun jälkeen · hiiren oikea painike tai välilyönti + veto siirtää näkymää',
+  'hint.build': '<b>Rakenna:</b> vedä elementtejä vasemmalta halliin · <kbd>R</kbd>/<kbd>Shift+R</kbd> kiertää · <kbd>Del</kbd> poistaa · <kbd>Ctrl+D</kbd> kopioi · Shift vetäessä poistaa ruudukon käytöstä · hiiren rulla zoomaa',
+  'wp.free': 'Vapaa piste', 'act.fly': 'lennä pisteeseen', 'act.takeoff': 'nousu',
+  'act.land': 'laskeutuminen', 'act.touch': 'laskeudu ja nouse', 'act.gate': 'aukon läpi',
+  'act.rev': ' (vastakkaiseen suuntaan)', 'act.wait': 'odota alustalla', 'act.hover': 'leiju {s} s',
+  'act.pylon': '{turn}, lippu {side}', 'act.end': 'Loppu', 'turn.pass': 'ohita',
+  'turn.uturn': 'U-käännös', 'turn.circle': 'täysi kierros', 'side.left': 'vasemmalta', 'side.right': 'oikealta',
+  'chk.outside': '{name} ulottuu hallin ulkopuolelle.', 'chk.tall': '{name} on liian korkea halliin ({h} m).',
+  'chk.overlap': '{a} ja {b} ovat päällekkäin.', 'chk.nopath': 'Lentoreitti puuttuu. Valitse ”Lentoreitti” ja napsauta elementtejä lentojärjestyksessä.',
+  'chk.start': 'Rata ei ala laskeutumisalustalta.', 'chk.end': 'Rata ei pääty laskeutumisalustalle.',
+  'chk.narrow': '{i}. {name}: {cm} cm aukko on droonille {drone} liian kapea.',
+  'chk.wall': 'Lentoreitti kulkee alle 20 cm:n päässä seinästä.',
+  'chk.ceiling': 'Lentoreitti kulkee alle 30 cm:n päässä katosta.',
+  'chk.hit': 'Lentoreitti kulkee elementin {name} läpi. Tarkista järjestys tai lisää vapaa piste.',
+  'chk.ok': 'Ongelmaa ei löytynyt.', 'chk.note': 'Valitse elementti napsauttamalla ilmoitusta.',
+  'msg.occupied': 'Paikalla on jo toinen elementti – elementit eivät saa mennä päällekkäin.',
+  'msg.noSpace': 'Hallissa ei ole enää tilaa tälle elementille.',
+  'msg.noStorage': 'Selain ei salli ratojen tallentamista. Käytä toimintoa ”Lataa .json”.',
+  'msg.invalid': 'Rata ”{name}” ei kelpaa.',
+  'msg.openConfirm': 'Avataanko ”{name}”? Nykyinen rata korvataan (Ctrl+Z palauttaa sen).',
+  'msg.loadConfirm': 'Ladataanko {name}? Nykyinen rata korvataan (Ctrl+Z palauttaa sen).',
+  'msg.delConfirm': 'Poistetaanko ”{name}” luettelosta ”Omat radat”?',
+  'msg.newConfirm': 'Aloitetaanko uusi tyhjä rata? Nykyinen rata korvataan.',
+  'msg.clearConfirm': 'Tyhjennetäänkö koko lentoreitti?', 'msg.badFormat': 'virheellinen muoto',
+  'msg.openFail': 'Tiedoston avaaminen epäonnistui: {err}',
+  'py.gen': '# Luotu drooniradan suunnittelijalla {date}',
+  'py.place': '# Aseta drooni lähtöalustalle nokka nuolen suuntaan (katso alustan ominaisuudet).',
+  'py.move': '# move_distance(eteen, vasemmalle, ylös, nopeus) – metreinä ja m/s, suhteessa drooniin.',
+  'py.safety': '# Huom. Testaa liikkeet turvallisessa ympäristössä ja hitaalla nopeudella ennen kilpailua.',
+  'py.empty': '# Lentoreitti on tyhjä.',
+  'csv.plan': 'Nro|Vaihe|Toiminto|Matka (m)|Suunta (°)|Korkeus (m)',
+  'csv.mat': 'Elementti|Luettelon nimi|Koko|Määrä|Yksikköhinta (USD)|Yhteensä (USD)',
+  'p.hall': 'Halli', 'p.width': 'Leveys (m)', 'p.length': 'Pituus (m)', 'p.ceiling': 'Katon korkeus (m)',
+  'p.grid': 'Ruudukko', 'p.howto': 'Käyttöohje',
+  'p.howto1': 'Vedä elementtejä vasemman reunan valikoimasta halliin tai lisää elementti keskelle napsauttamalla sitä. Napsautus valitsee elementin.',
+  'p.howto2': '<kbd>R</kbd> kiertää 15° · <kbd>Shift</kbd>+rulla kiertää · nuolinäppäimet siirtävät · <kbd>Del</kbd> poistaa · <kbd>Ctrl+D</kbd> kopioi · <kbd>Ctrl+Z</kbd> kumoaa · <kbd>[</kbd> <kbd>]</kbd> kiertävät näkymää · <kbd>T</kbd> ylhäältä · <kbd>L</kbd> lentoreitti · <kbd>P</kbd> toistaa.',
+  'p.howto3': 'Keskeneräinen rata tallentuu automaattisesti selaimeen. ”Tallenna” (<kbd>Ctrl+S</kbd>) lisää sen nimellä ”Radat…”-valikon ”Omat radat” -kohtaan.',
+  'p.inPath': 'lentopiste {list}', 'p.size': 'Koko', 'p.rot': 'Kierto', 'p.zc': 'Korkeus (keskikohta)',
+  'p.addwp': '+ Lisää lentoreitille', 'p.rot90': 'Kierrä 90°', 'p.dup': 'Kopioi', 'p.del': 'Poista',
+  'p.openings': 'Aukot', 'p.at': ', korkeudella {a}–{b} m', 'p.fromAbove': ', lennetään ylhäältä alas',
+  'p.arrowGate': 'Oranssi nuoli näyttää läpilennon suunnan.',
+  'p.arrowPad': 'Oranssi nuoli näyttää droonin nokan suunnan lähdössä. Se määrittää CoDrone EDU -koodin suunnan.',
+  'path.drone': 'Drooni', 'path.cruise': 'Lentokorkeus', 'path.len': 'reitin pituus',
+  'path.time': 'arvioitu aika ({v} m/s)', 'path.wps': 'Lentopisteet',
+  'path.emptyPath': 'Napsauta hallissa elementtejä lentojärjestyksessä.<br>Aloita lähtöalustalta.',
+  'path.emptyBuild': 'Ota yläreunasta ”Lentoreitti” käyttöön ja napsauta elementtejä lentojärjestyksessä.',
+  'path.drag': 'Vedä järjestyksen muuttamiseksi', 'path.up': 'Aiemmin', 'path.down': 'Myöhemmin',
+  'path.remove': 'Poista', 'path.rev': 'Käännä reitti', 'path.clear': 'Tyhjennä',
+  'path.point': 'Piste {n}', 'path.opening': 'Aukko', 'path.dir': 'Suunta',
+  'dir.auto': 'automaattinen', 'dir.fwd': 'nuolen suuntaan', 'dir.rev': 'nuolta vastaan',
+  'path.flagSide': 'Lippu jää', 'flag.left': 'vasemmalle', 'flag.right': 'oikealle',
+  'path.turn': 'Liike', 'path.height': 'Korkeus', 'path.radius': 'Säde',
+  'path.wait': 'Odota alustalla', 'path.hover': 'Leijunta',
+  'mat.empty': 'Hallissa ei ole vielä elementtejä.', 'mat.el': 'Elementti', 'mat.pcs': 'kpl',
+  'mat.price': 'Hinta', 'mat.total': 'Yhteensä',
+  'mat.note': 'Hinnat ovat luettelosta ”Catalog of UAV Tracks 2026” (USD, EXW, ilman toimitusta ja veroja).',
+  'mat.setOnly': ' Viivalla merkityt elementit myydään vain osana sarjaa.', 'dl.csv': 'Lataa CSV',
+  'ex.pyNote': 'Koodi käyttää <code>codrone_edu</code>-kirjastoa. Drooni lentää kääntymättä nokka lähtöalustan nuolen suuntaan.',
+  'ex.copy': 'Kopioi', 'ex.copied': 'Kopioitu ✓', 'ex.dlPy': 'Lataa .py', 'ex.plan': 'Lentosuunnitelma',
+  'ex.planNote': 'Sovellus ei luo koodia DJI Neo 2:lle. Sen sijaan saat lentosuunnitelman lentäjälle ja tuomareille: vaiheet, etäisyydet, suunnat (0° = hallin Y-akseli) ja korkeudet.',
+  'ex.stage': 'Vaihe', 'ex.action': 'Toiminto', 'ex.noPath': 'Lentoreitti puuttuu.', 'ex.track': 'Rata',
+  'ex.saveList': 'Tallenna luetteloon', 'ex.dlJson': 'Lataa .json', 'ex.png': 'Tallenna kuva',
+  'ex.print': 'Tulosta', 'ex.elements': '{n} elementtiä', 'ex.open': 'Avaa',
+  'ex.libDel': 'Poista luettelosta', 'ex.libEmpty': 'Tallennettuja ratoja ei ole. Paina yläreunasta ”Tallenna”.',
+  'ex.libNote': 'Radat tallennetaan tämän tietokoneen selaimeen. Siirrä rata toiseen tietokoneeseen valitsemalla ”Lataa .json” ja avaamalla tiedosto siellä toiminnolla ”Avaa tiedosto…”.',
+  'ex.instr': 'Ohjaajille',
+  'ex.instrNote': 'Jotta rata näkyy kaikille kohdassa ”Ohjaajan radat”, valitse ”Lataa .json”, kopioi tiedosto repositorion kansioon <code>rajaplaneerija/rajad/</code> ja lataa se GitHubiin.',
+};
+
+Object.assign(I18N.et, {
+  'sim.launch': 'FPV-simulaator', 'sim.title': 'FPV-lennusimulaator', 'sim.view': 'Drooni FPV-vaates', 'sim.map': 'Lennuraja kaart',
+  'sim.ready': 'Valmis õhkutõusuks', 'sim.pause': 'Paus', 'sim.resume': 'Jätka', 'sim.paused': 'Pausil',
+  'sim.restart': 'Alusta uuesti', 'sim.exit': 'Välju', 'sim.timer': 'Lennuaeg', 'sim.speed': 'Kiirus',
+  'sim.altitude': 'Kõrgus', 'sim.distance': 'Läbitud', 'sim.heading': 'Suund', 'sim.points': 'Punktid',
+  'sim.next': 'Järgmine punkt', 'sim.complete': 'Rada läbitud · maandu stardiplatsile',
+  'sim.flying': 'Lend käib', 'sim.controls': 'W/S edasi-tagasi · A/D külgsuunas · Q/E pööramine · R/F tõus/laskumine · Shift kiirendus · tühik paus · Esc välju',
+});
+Object.assign(I18N.en, {
+  'sim.launch': 'FPV simulator', 'sim.title': 'FPV flight simulator', 'sim.view': 'Drone FPV view', 'sim.map': 'Flight path map',
+  'sim.ready': 'Ready for take-off', 'sim.pause': 'Pause', 'sim.resume': 'Resume', 'sim.paused': 'Paused',
+  'sim.restart': 'Restart', 'sim.exit': 'Exit', 'sim.timer': 'Flight time', 'sim.speed': 'Speed',
+  'sim.altitude': 'Altitude', 'sim.distance': 'Distance', 'sim.heading': 'Heading', 'sim.points': 'Waypoints',
+  'sim.next': 'Next waypoint', 'sim.complete': 'Route complete · land on the start pad',
+  'sim.flying': 'Flying', 'sim.controls': 'W/S forward/back · A/D strafe · Q/E turn · R/F climb/descend · Shift boost · Space pause · Esc exit',
+});
+Object.assign(I18N.fi, {
+  'sim.launch': 'FPV-simulaattori', 'sim.title': 'FPV-lentosimulaattori', 'sim.view': 'Droonin FPV-näkymä', 'sim.map': 'Lentoreitin kartta',
+  'sim.ready': 'Valmis nousuun', 'sim.pause': 'Tauko', 'sim.resume': 'Jatka', 'sim.paused': 'Tauolla',
+  'sim.restart': 'Aloita uudelleen', 'sim.exit': 'Poistu', 'sim.timer': 'Lentoaika', 'sim.speed': 'Nopeus',
+  'sim.altitude': 'Korkeus', 'sim.distance': 'Matka', 'sim.heading': 'Suunta', 'sim.points': 'Pisteet',
+  'sim.next': 'Seuraava piste', 'sim.complete': 'Rata suoritettu · laskeudu lähtöalustalle',
+  'sim.flying': 'Lento käynnissä', 'sim.controls': 'W/S eteen/taakse · A/D sivulle · Q/E käänny · R/F nouse/laske · Shift tehostus · välilyönti tauko · Esc poistu',
+});
+
 const LANG_KEY = 'droonirajaplaneerija.keel';
-// Keele valik: ?lang=en aadressis, siis viimati valitud keel, muidu eesti keel
+// Keele valik: ?lang=... aadressis, siis viimati valitud keel, muidu eesti keel
 let LANG = (() => {
   try {
     const q = new URLSearchParams(location.search).get('lang');
@@ -405,4 +524,13 @@ function tr(key, p) {
   return p ? s.replace(/\{(\w+)\}/g, (m, k) => (k in p ? p[k] : m)) : s;
 }
 // Andmeobjekti tõlgitud väli: { name: 'Rõngas', enName: 'Ring' } → loc(o, 'name')
-function loc(o, field) { return LANG === 'en' && o[field + 'En'] != null ? o[field + 'En'] : o[field]; }
+function loc(o, field) {
+  if (LANG === 'en' && o[field + 'En'] != null) return o[field + 'En'];
+  if (LANG === 'fi' && field === 'name' && o.nameEn != null) {
+    const names = { Ring: 'Rengas', Lower: 'Alempi', Upper: 'Ylempi', 'From above': 'Ylhäältä',
+      'High (2.2 m)': 'Korkea (2,2 m)', 'Low (1.2 m)': 'Matala (1,2 m)', Arch: 'Kaari',
+      Gate: 'Portti', 'Upper opening': 'Yläaukko', Front: 'Etupuoli', Side: 'Sivu', Tunnel: 'Tunneli' };
+    return names[o.nameEn] || o.nameEn;
+  }
+  return o[field];
+}
