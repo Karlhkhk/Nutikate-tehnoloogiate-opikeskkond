@@ -15,7 +15,7 @@
   <meta property="og:image:alt" content="Droonirajaplaneerija: 3D-vaade drooni lennurajast">
   <meta name="twitter:card" content="summary_large_image">
   <link rel="icon" href="../assets/track/ring.svg">
-  <link rel="stylesheet" href="css/style.css?v=settings-controls-1">
+  <link rel="stylesheet" href="css/style.css?v=theme-toggle-1">
 </head>
 <body>
   <header class="topbar">
@@ -64,6 +64,13 @@
       <button data-lang="en" lang="en">ENG</button>
       <button data-lang="fi" lang="fi">FIN</button>
     </div>
+    <label class="theme-control" for="themeSelect">
+      <span aria-hidden="true">◐</span>
+      <select id="themeSelect" data-theme-select aria-label="Värviteema" data-i18n-aria="theme.label">
+        <option value="light" data-i18n="theme.light">Hele</option>
+        <option value="dark" data-i18n="theme.dark">Tume</option>
+      </select>
+    </label>
   </header>
 
   <main class="layout">
@@ -97,10 +104,21 @@
     <header class="sim-head">
       <div><strong data-i18n="sim.title">FPV-simulaator</strong><span id="simStatus" data-i18n="sim.ready">Valmis</span></div>
       <div class="sim-actions">
-        <button id="simSettingsOpen" data-i18n="sim.settings.open">Seaded</button>
-        <button id="simPause" data-i18n="sim.pause">Peata</button>
-        <button id="simRestart" data-i18n="sim.restart">Alusta uuesti</button>
-        <button id="simClose" data-i18n="sim.exit">Välju</button>
+        <details class="sim-menu" id="simMenu">
+          <summary id="simMenuSummary" data-i18n="sim.menu">Menüü</summary>
+          <div class="sim-menu-items" role="dialog" aria-modal="true" aria-labelledby="simMenuTitle">
+            <button id="simMenuClose" class="sim-menu-close" type="button" aria-label="Sulge menüü" data-i18n-aria="sim.menu.close">×</button>
+            <div class="sim-menu-heading">
+              <span data-i18n="sim.menu.eyebrow">LENNUSIMULAATOR</span>
+              <h2 id="simMenuTitle" data-i18n="sim.menu">Menüü</h2>
+              <p data-i18n="sim.menu.hint">Vali, mida soovid teha</p>
+            </div>
+            <button id="simSettingsOpen" data-i18n="sim.settings.open">Seaded</button>
+            <button id="simPause" data-i18n="sim.pause">Paus</button>
+            <button id="simRestart" data-i18n="sim.restart">Alusta uuesti</button>
+            <button id="simClose" data-i18n="sim.exit">Välju</button>
+          </div>
+        </details>
       </div>
     </header>
     <section class="sim-settings-scrim" id="simSettings" role="dialog" aria-modal="true" aria-labelledby="simSettingsTitle" hidden>
@@ -110,10 +128,18 @@
           <button id="simSettingsClose" type="button" data-i18n="sim.settings.close" data-i18n-aria="sim.settings.close">Sulge</button>
         </header>
         <nav class="sim-settings-nav" aria-label="Seadete kategooriad" data-i18n-aria="sim.settings.categories">
-          <button type="button" class="on" data-i18n="sim.settings.controls">Controls</button>
+          <button type="button" class="on" data-settings-tab="controls" aria-selected="true" data-i18n="sim.settings.controls">Controls</button>
+          <button type="button" data-settings-tab="routes" aria-selected="false" data-i18n="sim.settings.routes">Rajaseaded</button>
         </nav>
-        <div class="sim-settings-content">
+        <div class="sim-settings-content" data-settings-page="controls">
           <h3 data-i18n="sim.settings.controls">Controls</h3>
+          <label class="sim-theme-setting" for="simThemeSelect">
+            <span data-i18n="theme.label">Värviteema</span>
+            <select id="simThemeSelect" data-theme-select>
+              <option value="light" data-i18n="theme.light">Hele</option>
+              <option value="dark" data-i18n="theme.dark">Tume</option>
+            </select>
+          </label>
           <fieldset class="sim-control-mode">
             <legend data-i18n="sim.settings.controlMethod">Juhtimisviis</legend>
             <label><input type="radio" name="simControlMode" value="keyboard"><span data-i18n="sim.settings.keyboard">Klaviatuur</span></label>
@@ -137,6 +163,14 @@
             <div class="sim-axis-settings" id="simAxisSettings"></div>
           </div>
         </div>
+        <section class="sim-settings-content" data-settings-page="routes" hidden>
+          <h3 data-i18n="sim.settings.routes">Rajaseaded</h3>
+          <div class="sim-route-current"><span data-i18n="sim.settings.routeCurrent">Hetkel valitud rada</span><strong id="simRouteCurrent">—</strong></div>
+          <label class="sim-route-label" for="simTrackSelect" data-i18n="sim.settings.routeSelect">Vali rada</label>
+          <select id="simTrackSelect" class="sim-route-select"></select>
+          <p class="sim-route-hint" data-i18n="sim.settings.routeHint">Raja valimisel vahetub simulaatori rada kohe ja lend algab valitud raja algusest.</p>
+          <p class="sim-route-feedback" id="simRouteFeedback" aria-live="polite"></p>
+        </section>
       </div>
     </section>
     <canvas id="simMap" class="sim-map" aria-label="Raja kaart" data-i18n-aria="sim.map"></canvas>
@@ -154,9 +188,9 @@
 
   <input type="file" id="fileIn" accept=".json,application/json" hidden>
 
-  <script src="js/i18n.js?v=settings-controls-1"></script>
+  <script src="js/i18n.js?v=theme-toggle-1"></script>
   <script src="js/elements.js?v=dev"></script>
-  <script src="js/simulator.js?v=settings-controls-1"></script>
-  <script src="js/app.js?v=settings-controls-1"></script>
+  <script src="js/simulator.js?v=theme-toggle-1"></script>
+  <script src="js/app.js?v=theme-toggle-1"></script>
 </body>
 </html>

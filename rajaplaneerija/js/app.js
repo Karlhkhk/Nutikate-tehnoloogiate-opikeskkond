@@ -6,6 +6,12 @@
   const uid = () => Math.random().toString(36).slice(2, 9);
   const esc = s => String(s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
   const num = (n, d = 2) => { const s = (+n.toFixed(d)).toString(); return LANG === 'en' ? s : s.replace('.', ','); };
+  const themeColors = { light: Object.create(null), dark: Object.create(null) };
+  const themeColor = name => {
+    const colors = themeColors[document.documentElement.dataset.theme === 'dark' ? 'dark' : 'light'];
+    if (!(name in colors)) colors[name] = getComputedStyle(document.documentElement).getPropertyValue(name).trim();
+    return colors[name];
+  };
   const money = n => '$' + n.toFixed(2);
   const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
   const add = (a, b) => [a[0] + b[0], a[1] + b[1], a[2] + b[2]];
@@ -20,6 +26,7 @@
   };
   const STORE = 'droonirajaplaneerija.v1';
   const LIB = 'droonirajaplaneerija.rajad';
+  const THEME_KEY = 'droonirajaplaneerija.teema';
   const PATH_COLOR = '#7c3aed';
 
   const canvas = $('#scene'), ctx = canvas.getContext('2d');
@@ -38,6 +45,8 @@
     root: $('#simOverlay'), pause: $('#simPause'), status: $('#simStatus'), time: $('#simTime'), speed: $('#simSpeed'),
     alt: $('#simAltitude'), distance: $('#simDistance'), heading: $('#simHeading'), points: $('#simPoints'), next: $('#simNext'),
     settingsOpen: $('#simSettingsOpen'), settings: $('#simSettings'), settingsClose: $('#simSettingsClose'),
+    menu: $('#simMenu'), menuSummary: $('#simMenuSummary'),
+    settingsClosed: () => { simUi.menu.open = true; simUi.menuSummary.focus(); },
     controllerState: $('#simControllerState'), controllerSelect: $('#simControllerSelect'), controllerRescan: $('#simControllerRescan'),
     controllerCounts: $('#simControllerCounts'), radioSettings: $('#simRadioSettings'), keyboardHelp: $('#simKeyboardHelp'),
     liveRows: $('#simLiveRows'), deadzone: $('#simDeadzone'), deadzoneValue: $('#simDeadzoneValue'), axisSettings: $('#simAxisSettings'),
@@ -118,10 +127,16 @@
   function undo() { if (!undoS.length) return; redoS.push(JSON.stringify(state)); state = JSON.parse(undoS.pop()); afterLoad(); }
   function redo() { if (!redoS.length) return; undoS.push(JSON.stringify(state)); state = JSON.parse(redoS.pop()); afterLoad(); }
 
+  function updateSimRouteCurrent() {
+    const current = $('#simRouteCurrent');
+    if (current && state) current.textContent = state.name || tr('track.untitled');
+  }
+
   function afterLoad() {
     if (ui.sel && !byId(ui.sel)) ui.sel = null;
     if (ui.wp != null && ui.wp >= state.path.length) ui.wp = null;
     $('#trackName').value = state.name;
+    updateSimRouteCurrent();
     anim.s = Math.min(anim.s, 0);
     invalidate();
     renderPanel();
@@ -459,6 +474,9 @@
 
   function drawFloor() {
     const { w, l, h, grid } = state.hall;
+    const wallFill = themeColor('--wall-fill'), wallStroke = themeColor('--wall-stroke');
+    const floorColor = themeColor('--floor'), majorGrid = themeColor('--grid-major'), minorGrid = themeColor('--grid-minor');
+    const gridText = themeColor('--grid-text');
     const corners = [[0, 0], [w, 0], [w, l], [0, l]];
     // tagumised seinad annavad ruumitunde
     if (view.pitch < 89) {
@@ -467,27 +485,27 @@
         const a = corners[i], b = corners[(i + 1) % 4], m = proj([(a[0] + b[0]) / 2, (a[1] + b[1]) / 2, 0]);
         if (m[2] < cd) {
           const q = [proj([a[0], a[1], 0]), proj([b[0], b[1], 0]), proj([b[0], b[1], h]), proj([a[0], a[1], h])];
-          polyPath(ctx, q); ctx.fillStyle = 'rgba(148,163,184,0.10)'; ctx.fill();
-          ctx.strokeStyle = 'rgba(148,163,184,0.35)'; ctx.lineWidth = 1; ctx.stroke();
+          polyPath(ctx, q); ctx.fillStyle = wallFill; ctx.fill();
+          ctx.strokeStyle = wallStroke; ctx.lineWidth = 1; ctx.stroke();
         }
       }
     }
     const fl = corners.map(([x, y]) => proj([x, y, 0]));
-    polyPath(ctx, fl); ctx.fillStyle = '#e9edf2'; ctx.fill();
+    polyPath(ctx, fl); ctx.fillStyle = floorColor; ctx.fill();
     ctx.lineWidth = 1;
     for (let x = 0; x <= w + 1e-6; x += grid) {
       const major = Math.abs(x - Math.round(x)) < 1e-6;
-      ctx.strokeStyle = major ? '#cfd8e3' : '#dde4ec';
+      ctx.strokeStyle = major ? majorGrid : minorGrid;
       const a = proj([x, 0, 0]), b = proj([x, l, 0]); ctx.beginPath(); ctx.moveTo(a[0], a[1]); ctx.lineTo(b[0], b[1]); ctx.stroke();
     }
     for (let y = 0; y <= l + 1e-6; y += grid) {
       const major = Math.abs(y - Math.round(y)) < 1e-6;
-      ctx.strokeStyle = major ? '#cfd8e3' : '#dde4ec';
+      ctx.strokeStyle = major ? majorGrid : minorGrid;
       const a = proj([0, y, 0]), b = proj([w, y, 0]); ctx.beginPath(); ctx.moveTo(a[0], a[1]); ctx.lineTo(b[0], b[1]); ctx.stroke();
     }
     polyPath(ctx, fl); ctx.strokeStyle = '#94a3b8'; ctx.lineWidth = 1.5; ctx.stroke();
     // meetrite märgid
-    ctx.fillStyle = '#64748b'; ctx.font = '11px system-ui, sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    ctx.fillStyle = gridText; ctx.font = '11px system-ui, sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
     const step = view.scale < 22 ? 4 : 2;
     for (let x = 0; x <= w + 1e-6; x += step) { const p = proj([x, -0.45, 0]); ctx.fillText(x + ' m', p[0], p[1]); }
     for (let y = step; y <= l + 1e-6; y += step) { const p = proj([-0.55, y, 0]); ctx.fillText(y + ' m', p[0], p[1]); }
@@ -499,11 +517,11 @@
     const L = Math.hypot(dx, dy) || 1; dx /= L; dy /= L;
     const cx = W - 34, cy = 34;
     ctx.save();
-    ctx.fillStyle = 'rgba(255,255,255,0.9)'; ctx.strokeStyle = '#cbd5e1';
+    ctx.fillStyle = themeColor('--compass-bg'); ctx.strokeStyle = themeColor('--compass-border');
     ctx.beginPath(); ctx.arc(cx, cy, 20, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
-    ctx.strokeStyle = '#334155'; ctx.lineWidth = 2;
+    ctx.strokeStyle = themeColor('--compass-ink'); ctx.lineWidth = 2;
     ctx.beginPath(); ctx.moveTo(cx - dx * 11, cy - dy * 11); ctx.lineTo(cx + dx * 11, cy + dy * 11); ctx.stroke();
-    ctx.fillStyle = '#334155';
+    ctx.fillStyle = themeColor('--compass-ink');
     ctx.beginPath(); ctx.moveTo(cx + dx * 13, cy + dy * 13); ctx.lineTo(cx + dx * 5 - dy * 5, cy + dy * 5 + dx * 5); ctx.lineTo(cx + dx * 5 + dy * 5, cy + dy * 5 - dx * 5); ctx.fill();
     ctx.font = 'bold 9px system-ui'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
     ctx.fillText('Y', cx, cy + 30);
@@ -545,7 +563,7 @@
 
   function render() {
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-    ctx.fillStyle = '#f4f6f9'; ctx.fillRect(0, 0, W, H);
+    ctx.fillStyle = themeColor('--canvas-bg'); ctx.fillRect(0, 0, W, H);
     drawFloor();
 
     const items = [];
@@ -555,7 +573,7 @@
     // põrandajäljed ja valiku märk
     for (const el of state.elements) {
       const fp = footprint(el).map(proj);
-      polyPath(ctx, fp); ctx.fillStyle = 'rgba(15,23,42,0.07)'; ctx.fill();
+      polyPath(ctx, fp); ctx.fillStyle = themeColor('--footprint-shadow'); ctx.fill();
       if (el.id === ui.sel) {
         ctx.setLineDash([6, 4]); ctx.strokeStyle = PATH_COLOR; ctx.lineWidth = 1.5; ctx.stroke(); ctx.setLineDash([]);
       }
@@ -632,16 +650,16 @@
     const rotors = [[1, 1], [1, -1], [-1, -1], [-1, 1]].map(([i, j]) => [p[0] + (f[0] * i + r[0] * j) * a, p[1] + (f[1] * i + r[1] * j) * a, p[2]]);
     const c = proj(p), g = proj([p[0], p[1], 0]);
     ctx.save();
-    ctx.setLineDash([3, 3]); ctx.strokeStyle = 'rgba(15,23,42,0.35)'; ctx.lineWidth = 1;
+    ctx.setLineDash([3, 3]); ctx.strokeStyle = themeColor('--footprint-shadow'); ctx.lineWidth = 1;
     ctx.beginPath(); ctx.moveTo(c[0], c[1]); ctx.lineTo(g[0], g[1]); ctx.stroke(); ctx.setLineDash([]);
-    ctx.strokeStyle = '#0f172a'; ctx.lineWidth = Math.max(2, 0.03 * view.scale);
+    ctx.strokeStyle = themeColor('--compass-ink'); ctx.lineWidth = Math.max(2, 0.03 * view.scale);
     ctx.beginPath(); ctx.moveTo(...proj(rotors[0]).slice(0, 2)); ctx.lineTo(...proj(rotors[2]).slice(0, 2));
     ctx.moveTo(...proj(rotors[1]).slice(0, 2)); ctx.lineTo(...proj(rotors[3]).slice(0, 2)); ctx.stroke();
     rotors.forEach((q, i) => {
       const s = proj(q);
       ctx.beginPath(); ctx.ellipse(s[0], s[1], 0.07 * view.scale, 0.07 * view.scale * Math.max(0.35, Math.sin(rad(view.pitch))), 0, 0, Math.PI * 2);
-      ctx.fillStyle = i < 2 ? 'rgba(239,68,68,0.55)' : 'rgba(15,23,42,0.35)'; ctx.fill();
-      ctx.strokeStyle = '#0f172a'; ctx.lineWidth = 1; ctx.stroke();
+      ctx.fillStyle = i < 2 ? 'rgba(239,68,68,0.55)' : themeColor('--footprint-shadow'); ctx.fill();
+      ctx.strokeStyle = themeColor('--compass-ink'); ctx.lineWidth = 1; ctx.stroke();
     });
     ctx.fillStyle = '#f59e0b';
     ctx.beginPath(); ctx.arc(c[0], c[1], Math.max(3, 0.035 * view.scale), 0, Math.PI * 2); ctx.fill();
@@ -651,16 +669,16 @@
   // ---------- kõrgusprofiil ----------
   function drawProfile() {
     pctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-    pctx.fillStyle = '#ffffff'; pctx.fillRect(0, 0, PW, PH);
+    pctx.fillStyle = themeColor('--profile-bg'); pctx.fillRect(0, 0, PW, PH);
     pctx.font = '11px system-ui, sans-serif'; pctx.textBaseline = 'middle';
     if (flight.length < 0.01) {
-      pctx.fillStyle = '#94a3b8'; pctx.textAlign = 'center';
+      pctx.fillStyle = themeColor('--grid-text'); pctx.textAlign = 'center';
       pctx.fillText(tr('profile.empty'), PW / 2, PH / 2);
       return;
     }
     const L = flight.length, zMax = Math.max(state.hall.h, 2.5), l0 = 40, r0 = 14, t0 = 16, b0 = 20;
     const X = s => l0 + s / L * (PW - l0 - r0), Y = z => PH - b0 - z / zMax * (PH - t0 - b0);
-    pctx.strokeStyle = '#eef2f6'; pctx.lineWidth = 1; pctx.fillStyle = '#64748b'; pctx.textAlign = 'right';
+    pctx.strokeStyle = themeColor('--profile-grid'); pctx.lineWidth = 1; pctx.fillStyle = themeColor('--profile-text'); pctx.textAlign = 'right';
     for (let z = 0; z <= zMax + 1e-6; z += 0.5) {
       pctx.beginPath(); pctx.moveTo(l0, Y(z)); pctx.lineTo(PW - r0, Y(z)); pctx.stroke();
       if (Math.abs(z - Math.round(z)) < 1e-6) pctx.fillText(z + ' m', l0 - 5, Y(z));
@@ -1011,16 +1029,18 @@
     if (ui.tab === 'export') renderPanel();
   }
   function openState(data, name) {
-    if (!data || !Array.isArray(data.elements) || !Array.isArray(data.path)) { alert(tr('msg.invalid', { name })); return; }
-    if (state.elements.length && !confirm(tr('msg.openConfirm', { name }))) return;
+    if (!data || !Array.isArray(data.elements) || !Array.isArray(data.path)) { alert(tr('msg.invalid', { name })); return false; }
+    if (state.elements.length && !confirm(tr('msg.openConfirm', { name }))) return false;
     checkpoint();
     const copy = JSON.parse(JSON.stringify(data));
     state = Object.assign(defaultState(), copy, { hall: Object.assign(defaultState().hall, copy.hall) });
+    if (name) state.name = name;
     state.elements = state.elements.filter(e => TYPES[e.type]);
     ui.sel = null; ui.wp = null;
     afterLoad(); fitView(); requestRender();
+    return true;
   }
-  function openFromLib(i) { const r = loadLib()[i]; if (r) openState(r.data, r.name); }
+  function openFromLib(i) { const r = loadLib()[i]; return r ? openState(r.data, r.name) : false; }
   // Juhendaja rajad: JSON-failid kaustas rajad/, nimekirja (rajad/index.json) koostab GitHubi töövoog.
   // Failist avatud lehel (file://) fetch ei tööta – siis jääb rühm lihtsalt tühjaks.
   let instructorList = [];
@@ -1056,10 +1076,26 @@
   }
   function fillTrackSelect() {
     const lib = loadLib(), ins = instructorTracks();
-    tsel.innerHTML = `<option value="">${tr('tracks')}</option>` +
+    const options = `<option value="">${tr('tracks')}</option>` +
       (lib.length ? `<optgroup label="${tr('tracks.mine')}">${lib.map((r, i) => `<option value="m:${i}">${esc(r.name)} (${money(trackPrice(r.data))})</option>`).join('')}</optgroup>` : '') +
       (ins.length ? `<optgroup label="${tr('tracks.instructor')}">${ins.map((r, i) => `<option value="j:${i}">${esc(r.name || tr('track.n', { n: i + 1 }))} (${money(trackPrice(r))})</option>`).join('')}</optgroup>` : '') +
       `<optgroup label="${tr('tracks.catalog')}">${TEMPLATES.map((t, i) => `<option value="t:${i}">${esc(t.name)} (${money(t.price)})</option>`).join('')}</optgroup>`;
+    tsel.innerHTML = options;
+    $('#simTrackSelect').innerHTML = options;
+  }
+
+  function loadSelectedTrack(value) {
+    if (!value) return false;
+    const [kind, rawIndex] = value.split(':'), index = Number(rawIndex);
+    if (kind === 'm') return openFromLib(index);
+    if (kind === 'j') {
+      const route = instructorTracks()[index];
+      return route ? openState(route, route.name || tr('track.instructor')) : false;
+    }
+    const template = kind === 't' ? TEMPLATES[index] : null;
+    if (!template || (state.elements.length && !confirm(tr('msg.loadConfirm', { name: template.name })))) return false;
+    checkpoint(); loadTemplate(template); ui.sel = null; ui.wp = null; afterLoad(); fitView(); requestRender();
+    return true;
   }
   function openFile(file) {
     const r = new FileReader();
@@ -1468,9 +1504,22 @@
   });
   $('#fileIn').addEventListener('change', e => { if (e.target.files[0]) openFile(e.target.files[0]); e.target.value = ''; });
   $('#simPause').addEventListener('click', () => simulator.pause());
-  $('#simSettingsOpen').addEventListener('click', () => simulator.openSettings());
+  $('#simSettingsOpen').addEventListener('click', () => { updateSimRouteCurrent(); simulator.openSettings(); });
+  document.querySelector('.sim-menu').addEventListener('click', e => {
+    if (e.target.closest('button')) e.currentTarget.open = false;
+    else if (e.target === e.currentTarget) e.currentTarget.open = false;
+  });
   $('#simSettingsClose').addEventListener('click', () => simulator.closeSettings());
   $('#simSettings').addEventListener('click', e => { if (e.target === e.currentTarget) simulator.closeSettings(); });
+  document.querySelectorAll('[data-settings-tab]').forEach(tab => tab.addEventListener('click', () => {
+    const selected = tab.dataset.settingsTab;
+    document.querySelectorAll('[data-settings-tab]').forEach(button => {
+      const active = button === tab;
+      button.classList.toggle('on', active);
+      button.setAttribute('aria-selected', String(active));
+    });
+    document.querySelectorAll('[data-settings-page]').forEach(page => { page.hidden = page.dataset.settingsPage !== selected; });
+  }));
   $('#simControllerRescan').addEventListener('click', () => simulator.scanGamepads(true));
   $('#simControllerSelect').addEventListener('change', e => simulator.selectGamepad(e.target.value));
   document.querySelectorAll('input[name="simControlMode"]').forEach(input => input.addEventListener('change', e => simulator.setControlMode(e.target.value)));
@@ -1480,17 +1529,30 @@
   $('#speedSel').addEventListener('change', e => { anim.mult = +e.target.value; });
   $('#trackName').addEventListener('change', e => { checkpoint(); state.name = e.target.value.trim() || tr('track.untitled'); save(); });
   const tsel = $('#templateSel');
+  const simTrackSelect = $('#simTrackSelect');
   fillTrackSelect();
   loadInstructorTracks();
   tsel.addEventListener('change', () => {
-    const [kind, i] = tsel.value.split(':');
+    const value = tsel.value;
     tsel.value = '';
-    if (kind === 'm') { openFromLib(+i); return; }
-    if (kind === 'j') { const r = instructorTracks()[+i]; if (r) openState(r, r.name || tr('track.instructor')); return; }
-    const t = TEMPLATES[+i];
-    if (kind !== 't' || !t) return;
-    if (state.elements.length && !confirm(tr('msg.loadConfirm', { name: t.name }))) return;
-    checkpoint(); loadTemplate(t); ui.sel = null; ui.wp = null; afterLoad(); fitView(); requestRender();
+    simTrackSelect.value = '';
+    loadSelectedTrack(value);
+  });
+  simTrackSelect.addEventListener('change', () => {
+    const value = simTrackSelect.value;
+    simTrackSelect.value = '';
+    tsel.value = '';
+    const feedback = $('#simRouteFeedback');
+    if (!loadSelectedTrack(value)) {
+      feedback.textContent = tr('sim.settings.routeCancelled');
+      return;
+    }
+    if (simulator.start()) {
+      simulator.pause();
+      feedback.textContent = tr('sim.settings.routeLoaded');
+    } else {
+      feedback.textContent = tr('sim.settings.routeNoFlight');
+    }
   });
 
   // ---------- palett ----------
@@ -1522,6 +1584,18 @@
 
   // ---------- keel ----------
   // Staatilised tekstid on HTML-is atribuutidega data-i18n (sisu), data-i18n-title ja data-i18n-aria
+  function applyTheme(theme, persist = true) {
+    const selected = theme === 'dark' ? 'dark' : 'light';
+    document.documentElement.dataset.theme = selected;
+    document.documentElement.style.colorScheme = selected;
+    document.querySelectorAll('[data-theme-select]').forEach(select => { select.value = selected; });
+    if (persist) {
+      try { localStorage.setItem(THEME_KEY, selected); } catch (e) { /* teema jääb selleks laadimiseks */ }
+    }
+    requestRender();
+    simulator.setTheme();
+  }
+
   function applyLang() {
     document.documentElement.lang = LANG;
     document.title = tr('app.title');
@@ -1542,6 +1616,7 @@
     applyLang(); renderPalette(); fillTrackSelect(); updateHint();
     invalidate(); renderPanel();
   }
+  document.querySelectorAll('[data-theme-select]').forEach(select => select.addEventListener('change', () => applyTheme(select.value)));
 
   // ---------- suurus ja käivitus ----------
   function resize() {
@@ -1560,6 +1635,9 @@
   if (!state) { state = defaultState(); loadTemplate(TEMPLATES[0]); }
   state.elements = state.elements.filter(e => TYPES[e.type]);
   $('#trackName').value = state.name;
+  let savedTheme = 'light';
+  try { savedTheme = localStorage.getItem(THEME_KEY) || savedTheme; } catch (e) { /* kasuta heledat teemat */ }
+  applyTheme(savedTheme, false);
   applyLang();
   renderPalette();
   setMode('build');

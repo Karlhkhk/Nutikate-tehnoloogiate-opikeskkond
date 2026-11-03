@@ -28,6 +28,7 @@ class FlightSimulator {
     this.yaw = 0;
     this.pitch = 0;
     this.sceneBuilt = false;
+    this.themeColors = Object.create(null);
     this.settingsOpen = false;
     this.resumeAfterSettings = false;
     this.gamepads = [];
@@ -78,6 +79,17 @@ class FlightSimulator {
 
   glWorld(p) { return [p[0], p[2], p[1]]; }
 
+  themeColor(name, fallback) {
+    if (!(name in this.themeColors)) this.themeColors[name] = getComputedStyle(document.documentElement).getPropertyValue(name).trim();
+    return this.themeColors[name] || fallback;
+  }
+
+  setTheme() {
+    this.themeColors = Object.create(null);
+    this.sceneBuilt = false;
+    if (this.active) this.draw();
+  }
+
   buildGLScene() {
     const triangles = [], lines = [];
     const addLine = (a, b, color) => { const col = this.glColor(color); lines.push(...this.glWorld(a), ...col, ...this.glWorld(b), ...col); };
@@ -87,16 +99,17 @@ class FlightSimulator {
       for (let i = 1; i < pts.length - 1; i++) triangles.push(...base, ...col, ...this.glWorld(pts[i]), ...col, ...this.glWorld(pts[i + 1]), ...col);
     };
     const h = this.scene.hall;
-    addPoly([[0, 0, 0], [h.w, 0, 0], [h.w, h.l, 0], [0, h.l, 0]], '#cbd5e1');
+    addPoly([[0, 0, 0], [h.w, 0, 0], [h.w, h.l, 0], [0, h.l, 0]], this.themeColor('--sim-floor', '#cbd5e1'));
     const walls = [
       [[0, 0, 0], [h.w, 0, 0], [h.w, 0, h.h], [0, 0, h.h]],
       [[h.w, 0, 0], [h.w, h.l, 0], [h.w, h.l, h.h], [h.w, 0, h.h]],
       [[h.w, h.l, 0], [0, h.l, 0], [0, h.l, h.h], [h.w, h.l, h.h]],
       [[0, h.l, 0], [0, 0, 0], [0, 0, h.h], [0, h.l, h.h]],
     ];
-    walls.forEach(p => addPoly(p, 'rgba(226,232,240,.22)'));
-    for (let x = 0; x <= h.w + 1e-6; x += 1) addLine([x, 0, 0.008], [x, h.l, 0.008], 'rgba(100,116,139,.25)');
-    for (let y = 0; y <= h.l + 1e-6; y += 1) addLine([0, y, 0.008], [h.w, y, 0.008], 'rgba(100,116,139,.25)');
+    walls.forEach(p => addPoly(p, this.themeColor('--sim-wall-fill', 'rgba(226,232,240,.22)')));
+    const grid = this.themeColor('--sim-grid-line', 'rgba(100,116,139,.25)');
+    for (let x = 0; x <= h.w + 1e-6; x += 1) addLine([x, 0, 0.008], [x, h.l, 0.008], grid);
+    for (let y = 0; y <= h.l + 1e-6; y += 1) addLine([0, y, 0.008], [h.w, y, 0.008], grid);
     for (const el of this.scene.elements) for (const p of el) p.k === 'p' ? addPoly(p.pts, p.f || '#94a3b8') : addLine(p.a, p.b, p.c);
     for (let i = 1; i < this.scene.path.length; i++) addLine(this.scene.path[i - 1], this.scene.path[i], 'rgba(124,58,237,.7)');
     this.triangleCount = triangles.length / 7;
@@ -129,7 +142,9 @@ class FlightSimulator {
   drawWebGL() {
     const gl = this.gl, w = this.canvas.width, h = this.canvas.height;
     if (!this.sceneBuilt) this.buildGLScene();
-    gl.viewport(0, 0, w, h); gl.clearColor(0.48, 0.67, 0.82, 1); gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
+    gl.viewport(0, 0, w, h);
+    const background = this.glColor(this.themeColor('--sim-sky-top', '#7dd3fc'));
+    gl.clearColor(background[0], background[1], background[2], 1); gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
     const eye = this.glWorld([this.pos[0], this.pos[1], this.pos[2] + 0.08]);
     const cp = Math.cos(this.pitch), sp = Math.sin(this.pitch);
     const forward = [Math.cos(this.yaw) * cp, sp, Math.sin(this.yaw) * cp];
@@ -193,6 +208,7 @@ class FlightSimulator {
     if (this.resumeAfterSettings && this.paused) this.pause();
     this.resumeAfterSettings = false;
     this.ui.settingsOpen.focus();
+    this.ui.settingsClosed?.();
   }
 
   loadControlSettings() {
@@ -617,19 +633,23 @@ class FlightSimulator {
     const c = this.ctx, r = this.canvas.getBoundingClientRect(), w = r.width, h = r.height;
     c.clearRect(0, 0, w, h);
     const sky = c.createLinearGradient(0, 0, 0, h);
-    sky.addColorStop(0, '#7dd3fc'); sky.addColorStop(0.56, '#dbeafe'); sky.addColorStop(0.57, '#8798a8'); sky.addColorStop(1, '#374151');
+    sky.addColorStop(0, this.themeColor('--sim-sky-top', '#7dd3fc'));
+    sky.addColorStop(0.56, this.themeColor('--sim-sky-mid', '#dbeafe'));
+    sky.addColorStop(0.57, this.themeColor('--sim-sky-horizon', '#8798a8'));
+    sky.addColorStop(1, this.themeColor('--sim-ground', '#374151'));
     c.fillStyle = sky; c.fillRect(0, 0, w, h);
     const items = [], pushPoly = (pts, fill, stroke) => items.push({ type: 'poly', pts, fill, stroke, depth: pts.reduce((a, p) => a + p[2], 0) / pts.length });
     const hall = this.scene.hall, floor = [[0, 0, 0], [hall.w, 0, 0], [hall.w, hall.l, 0], [0, hall.l, 0]];
-    pushPoly(floor, '#cbd5e1', '#64748b');
-    for (let x = 0; x <= hall.w + 1e-6; x += 1) items.push({ type: 'line', pts: [[x, 0, 0.01], [x, hall.l, 0.01]], color: 'rgba(100,116,139,.22)', width: 0.008 });
-    for (let y = 0; y <= hall.l + 1e-6; y += 1) items.push({ type: 'line', pts: [[0, y, 0.01], [hall.w, y, 0.01]], color: 'rgba(100,116,139,.22)', width: 0.008 });
+    pushPoly(floor, this.themeColor('--sim-floor', '#cbd5e1'), this.themeColor('--sim-floor-stroke', '#64748b'));
+    const grid = this.themeColor('--sim-grid-line', 'rgba(100,116,139,.22)');
+    for (let x = 0; x <= hall.w + 1e-6; x += 1) items.push({ type: 'line', pts: [[x, 0, 0.01], [x, hall.l, 0.01]], color: grid, width: 0.008 });
+    for (let y = 0; y <= hall.l + 1e-6; y += 1) items.push({ type: 'line', pts: [[0, y, 0.01], [hall.w, y, 0.01]], color: grid, width: 0.008 });
     for (const wall of [
       [[0, 0, 0], [hall.w, 0, 0], [hall.w, 0, hall.h], [0, 0, hall.h]],
       [[hall.w, 0, 0], [hall.w, hall.l, 0], [hall.w, hall.l, hall.h], [hall.w, 0, hall.h]],
       [[hall.w, hall.l, 0], [0, hall.l, 0], [0, hall.l, hall.h], [hall.w, hall.l, hall.h]],
       [[0, hall.l, 0], [0, 0, 0], [0, 0, hall.h], [0, hall.l, hall.h]],
-    ]) pushPoly(wall, 'rgba(226,232,240,.22)', 'rgba(255,255,255,.35)');
+    ]) pushPoly(wall, this.themeColor('--sim-wall-fill', 'rgba(226,232,240,.22)'), this.themeColor('--sim-wall-stroke', 'rgba(255,255,255,.35)'));
     for (const el of this.scene.elements) for (const p of el) {
       if (p.k === 'p') pushPoly(p.pts, p.f || 'rgba(148,163,184,.45)', p.s || null);
       else items.push({ type: 'line', pts: [p.a, p.b], color: p.c, width: p.w, depth: (p.a[1] + p.b[1]) / 2 });
@@ -674,18 +694,18 @@ class FlightSimulator {
 
   drawReticle(w, h) {
     const c = this.ctx, x = w / 2, y = h / 2;
-    c.strokeStyle = 'rgba(15,23,42,.75)'; c.lineWidth = 2;
+    c.strokeStyle = this.themeColor('--sim-boundary', 'rgba(15,23,42,.75)'); c.lineWidth = 2;
     c.beginPath(); c.moveTo(x - 12, y); c.lineTo(x - 4, y); c.moveTo(x + 4, y); c.lineTo(x + 12, y); c.moveTo(x, y - 12); c.lineTo(x, y - 4); c.moveTo(x, y + 4); c.lineTo(x, y + 12); c.stroke();
   }
 
   drawMap() {
     const c = this.mapCtx, r = this.mapCanvas.getBoundingClientRect(), w = r.width, h = r.height, hall = this.scene.hall;
-    c.clearRect(0, 0, w, h); c.fillStyle = 'rgba(248,250,252,.96)'; c.fillRect(0, 0, w, h);
+    c.clearRect(0, 0, w, h); c.fillStyle = this.themeColor('--sim-map-bg', 'rgba(248,250,252,.96)'); c.fillRect(0, 0, w, h);
     const pad = 12, scale = Math.min((w - pad * 2) / hall.w, (h - pad * 2) / hall.l), ox = (w - hall.w * scale) / 2, oy = (h - hall.l * scale) / 2;
-    c.strokeStyle = '#64748b'; c.lineWidth = 2; c.strokeRect(ox, oy, hall.w * scale, hall.l * scale);
+    c.strokeStyle = this.themeColor('--sim-map-line', '#64748b'); c.lineWidth = 2; c.strokeRect(ox, oy, hall.w * scale, hall.l * scale);
     if (this.scene.path.length) {
       c.beginPath(); this.scene.path.forEach((p, i) => { const x = ox + p[0] * scale, y = oy + (hall.l - p[1]) * scale; i ? c.lineTo(x, y) : c.moveTo(x, y); });
-      c.strokeStyle = 'rgba(124,58,237,.55)'; c.lineWidth = 2; c.stroke();
+      c.strokeStyle = this.themeColor('--sim-map-route', 'rgba(124,58,237,.55)'); c.lineWidth = 2; c.stroke();
     }
     this.scene.route.forEach((p, i) => { c.beginPath(); c.arc(ox + p.position[0] * scale, oy + (hall.l - p.position[1]) * scale, i < this.passed ? 4 : 3, 0, Math.PI * 2); c.fillStyle = i < this.passed ? '#16a34a' : '#7c3aed'; c.fill(); });
     const x = ox + this.pos[0] * scale, y = oy + (hall.l - this.pos[1]) * scale;

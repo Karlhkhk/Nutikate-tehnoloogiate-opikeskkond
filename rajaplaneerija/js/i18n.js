@@ -7,6 +7,7 @@ const I18N = {
     'app.title': 'Droonirajaplaneerija',
     'locale': 'et-EE',
     'lang.aria': 'Keel',
+    'theme.label': 'Värviteema', 'theme.light': 'Hele', 'theme.dark': 'Tume',
     'track.name': 'Raja nimi',
     'track.new': 'Uus rada',
     'track.untitled': 'Nimetu rada',
@@ -199,6 +200,7 @@ const I18N = {
     'app.title': 'Drone Track Planner',
     'locale': 'en-GB',
     'lang.aria': 'Language',
+    'theme.label': 'Color theme', 'theme.light': 'Light', 'theme.dark': 'Dark',
     'track.name': 'Track name',
     'track.new': 'New track',
     'track.untitled': 'Untitled track',
@@ -393,7 +395,7 @@ const I18N = {
 I18N.fi = {
   ...I18N.en,
   'app.title': 'Drooniradan suunnittelija', 'locale': 'fi-FI',
-  'lang.aria': 'Kieli', 'track.name': 'Radan nimi', 'track.new': 'Uusi rata',
+  'lang.aria': 'Kieli', 'theme.label': 'Väriteema', 'theme.light': 'Vaalea', 'theme.dark': 'Tumma', 'track.name': 'Radan nimi', 'track.new': 'Uusi rata',
   'track.untitled': 'Nimetön rata', 'track.instructor': 'Ohjaajan rata',
   'track.n': 'Rata {n}', 'file.base': 'droonirata', 'file.plan': 'lentosuunnitelma', 'file.mat': 'materiaalit',
   'btn.new': 'Uusi', 'btn.new.t': 'Uusi tyhjä rata', 'btn.open': 'Avaa tiedosto…',
@@ -484,8 +486,8 @@ I18N.fi = {
 
 Object.assign(I18N.et, {
   'sim.launch': 'FPV-simulaator', 'sim.title': 'FPV-lennusimulaator', 'sim.view': 'Drooni FPV-vaates', 'sim.map': 'Lennuraja kaart',
-  'sim.ready': 'Valmis õhkutõusuks', 'sim.pause': 'Paus', 'sim.resume': 'Jätka', 'sim.paused': 'Pausil',
-  'sim.restart': 'Alusta uuesti', 'sim.exit': 'Välju', 'sim.timer': 'Lennuaeg', 'sim.speed': 'Kiirus',
+  'sim.ready': 'Valmis õhkutõusuks', 'sim.menu': 'Menüü', 'sim.menu.close': 'Sulge menüü', 'sim.menu.eyebrow': 'LENNUSIMULAATOR', 'sim.menu.hint': 'Vali, mida soovid teha', 'sim.pause': 'Paus', 'sim.resume': 'Jätka', 'sim.paused': 'Pausil',
+  'sim.restart': 'Alusta uuesti', 'sim.exit': 'Välju simulaatorist', 'sim.timer': 'Lennuaeg', 'sim.speed': 'Kiirus',
   'sim.altitude': 'Kõrgus', 'sim.distance': 'Läbitud', 'sim.heading': 'Suund', 'sim.points': 'Punktid',
   'sim.next': 'Järgmine punkt', 'sim.complete': 'Rada läbitud · maandu stardiplatsile',
   'sim.flying': 'Lend käib', 'sim.controls': 'W/S edasi-tagasi · A/D külgsuunas · Q/E pööramine · R/F tõus/laskumine · Shift kiirendus · tühik paus · Esc välju',
@@ -498,6 +500,8 @@ Object.assign(I18N.et, {
   'sim.controller.browser': 'Tuvastus kasutab brauseri Gamepad-liidest. Kalibreerimine lisandub järgmises etapis.',
   'sim.settings.open': 'Seaded', 'sim.settings.title': 'Seaded', 'sim.settings.subtitle': 'Kontrolli ja seadmed',
   'sim.settings.close': 'Sulge', 'sim.settings.categories': 'Seadete kategooriad', 'sim.settings.controls': 'Controls',
+  'sim.settings.routes': 'Rajaseaded', 'sim.settings.routeCurrent': 'Hetkel valitud rada', 'sim.settings.routeSelect': 'Vali rada', 'sim.settings.routeHint': 'Raja valimisel vahetub simulaatori rada kohe ja lend algab valitud raja algusest.',
+  'sim.settings.routeLoaded': 'Rada vahetatud. Lend alustas raja algusest.', 'sim.settings.routeNoFlight': 'Rada laeti, kuid sellel pole lennatavat trajektoori.', 'sim.settings.routeCancelled': 'Raja vahetamine tühistati.',
   'sim.settings.controlMethod': 'Juhtimisviis', 'sim.settings.keyboard': 'Klaviatuur', 'sim.settings.controller': 'Pult',
   'sim.settings.keyboardHelp': 'Klaviatuuriga juhtimine on aktiivne.',
   'sim.settings.controllerHint': 'Pult juhib drooni otse: throttle muudab kõrgust, roll liigub küljele, pitch edasi-tagasi ja yaw pöörab. Telgede järjekorda ja suunda saab muuta allpool.',
@@ -508,7 +512,7 @@ Object.assign(I18N.et, {
 });
 Object.assign(I18N.en, {
   'sim.launch': 'FPV simulator', 'sim.title': 'FPV flight simulator', 'sim.view': 'Drone FPV view', 'sim.map': 'Flight path map',
-  'sim.ready': 'Ready for take-off', 'sim.pause': 'Pause', 'sim.resume': 'Resume', 'sim.paused': 'Paused',
+  'sim.ready': 'Ready for take-off', 'sim.menu': 'Menu', 'sim.menu.close': 'Close menu', 'sim.menu.eyebrow': 'FLIGHT SIMULATOR', 'sim.menu.hint': 'Choose what you would like to do', 'sim.pause': 'Pause', 'sim.resume': 'Resume', 'sim.paused': 'Paused',
   'sim.restart': 'Restart', 'sim.exit': 'Exit', 'sim.timer': 'Flight time', 'sim.speed': 'Speed',
   'sim.altitude': 'Altitude', 'sim.distance': 'Distance', 'sim.heading': 'Heading', 'sim.points': 'Waypoints',
   'sim.next': 'Next waypoint', 'sim.complete': 'Route complete · land on the start pad',
@@ -522,6 +526,8 @@ Object.assign(I18N.en, {
   'sim.controller.browser': 'Detection uses the browser Gamepad API. Calibration will be added in a later step.',
   'sim.settings.open': 'Settings', 'sim.settings.title': 'Settings', 'sim.settings.subtitle': 'Controls and devices',
   'sim.settings.close': 'Close', 'sim.settings.categories': 'Settings categories', 'sim.settings.controls': 'Controls',
+  'sim.settings.routes': 'Route settings', 'sim.settings.routeCurrent': 'Currently selected route', 'sim.settings.routeSelect': 'Choose a route', 'sim.settings.routeHint': 'Choosing a route switches the simulator immediately and starts the flight at its beginning.',
+  'sim.settings.routeLoaded': 'Route changed. Flight restarted at the beginning.', 'sim.settings.routeNoFlight': 'Route loaded, but it has no flyable path.', 'sim.settings.routeCancelled': 'Route change cancelled.',
   'sim.settings.controlMethod': 'Control method', 'sim.settings.keyboard': 'Keyboard', 'sim.settings.controller': 'Controller',
   'sim.settings.keyboardHelp': 'Keyboard controls are active.',
   'sim.settings.controllerHint': 'The controller directly flies the drone: throttle changes altitude, roll moves sideways, pitch moves forward/back, and yaw turns. Change axis order and direction below.',
@@ -532,7 +538,7 @@ Object.assign(I18N.en, {
 });
 Object.assign(I18N.fi, {
   'sim.launch': 'FPV-simulaattori', 'sim.title': 'FPV-lentosimulaattori', 'sim.view': 'Droonin FPV-näkymä', 'sim.map': 'Lentoreitin kartta',
-  'sim.ready': 'Valmis nousuun', 'sim.pause': 'Tauko', 'sim.resume': 'Jatka', 'sim.paused': 'Tauolla',
+  'sim.ready': 'Valmis nousuun', 'sim.menu': 'Valikko', 'sim.menu.close': 'Sulje valikko', 'sim.menu.eyebrow': 'LENTOSIMULAATTORI', 'sim.menu.hint': 'Valitse, mitä haluat tehdä', 'sim.pause': 'Tauko', 'sim.resume': 'Jatka', 'sim.paused': 'Tauolla',
   'sim.restart': 'Aloita uudelleen', 'sim.exit': 'Poistu', 'sim.timer': 'Lentoaika', 'sim.speed': 'Nopeus',
   'sim.altitude': 'Korkeus', 'sim.distance': 'Matka', 'sim.heading': 'Suunta', 'sim.points': 'Pisteet',
   'sim.next': 'Seuraava piste', 'sim.complete': 'Rata suoritettu · laskeudu lähtöalustalle',
@@ -546,6 +552,8 @@ Object.assign(I18N.fi, {
   'sim.controller.browser': 'Tunnistus käyttää selaimen Gamepad-rajapintaa. Kalibrointi lisätään myöhemmin.',
   'sim.settings.open': 'Asetukset', 'sim.settings.title': 'Asetukset', 'sim.settings.subtitle': 'Ohjaus ja laitteet',
   'sim.settings.close': 'Sulje', 'sim.settings.categories': 'Asetusten kategoriat', 'sim.settings.controls': 'Controls',
+  'sim.settings.routes': 'Reittiasetukset', 'sim.settings.routeCurrent': 'Valittu reitti', 'sim.settings.routeSelect': 'Valitse reitti', 'sim.settings.routeHint': 'Reitin valinta vaihtaa sen heti simulaattoriin ja aloittaa lennon reitin alusta.',
+  'sim.settings.routeLoaded': 'Reitti vaihdettu. Lento aloitettiin alusta.', 'sim.settings.routeNoFlight': 'Reitti ladattiin, mutta siinä ei ole lennettävää rataa.', 'sim.settings.routeCancelled': 'Reitin vaihto peruutettiin.',
   'sim.settings.controlMethod': 'Ohjaustapa', 'sim.settings.keyboard': 'Näppäimistö', 'sim.settings.controller': 'Ohjain',
   'sim.settings.keyboardHelp': 'Näppäimistöohjaus on käytössä.',
   'sim.settings.controllerHint': 'Ohjain lentää dronea suoraan: throttle muuttaa korkeutta, roll liikkuu sivulle, pitch eteen/taakse ja yaw kääntää. Voit vaihtaa akseleiden järjestystä ja suuntaa alta.',
