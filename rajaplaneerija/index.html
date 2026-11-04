@@ -145,7 +145,11 @@
             <label><input type="radio" name="simControlMode" value="keyboard"><span data-i18n="sim.settings.keyboard">Klaviatuur</span></label>
             <label><input type="radio" name="simControlMode" value="controller"><span data-i18n="sim.settings.controller">Pult</span></label>
           </fieldset>
-          <div class="sim-keyboard-help" id="simKeyboardHelp" data-i18n="sim.settings.keyboardHelp">W/S edasi-tagasi · A/D külgsuunas · Q/E pööramine · R/F tõus ja laskumine · Shift kiirendus</div>
+          <div class="sim-keyboard-help" id="simKeyboardHelp">
+            <p data-i18n="sim.settings.keyboardHelp">Vali käsu kõrval „Muuda klahvi“ ja vajuta uut klahvi.</p>
+            <div class="sim-keyboard-bindings" id="simKeyboardBindings"></div>
+            <div class="sim-keyboard-actions"><span id="simKeyboardBindingStatus" aria-live="polite"></span><button id="simKeyboardReset" type="button" data-i18n="sim.settings.keyboardReset">Taasta vaikeseaded</button></div>
+          </div>
           <div class="sim-radio-settings" id="simRadioSettings" hidden>
             <div class="sim-controller-state" id="simControllerState" aria-live="polite"></div>
             <label class="sim-controller-label" for="simControllerSelect" data-i18n="sim.controller.device">Tuvastatud pult</label>
@@ -153,11 +157,37 @@
               <select id="simControllerSelect" aria-describedby="simControllerHint"></select>
               <button id="simControllerRescan" type="button" data-i18n="sim.controller.rescan">Otsi uuesti</button>
             </div>
+            <div class="sim-controller-actions">
+              <button id="simControllerCalibrate" type="button" data-i18n="sim.controller.calibrate" disabled>Kalibreeri pult</button>
+              <button id="simCoDroneConnect" type="button" data-i18n="sim.codrone.connect">Ühenda CoDrone USB kaudu</button>
+            </div>
             <p class="sim-controller-hint" id="simControllerHint" data-i18n="sim.controller.hint">Ühenda pult USB-kaabliga ja lülita see sisse. Kui pulti ei ilmu, klõpsa simulaatori aknal ja liiguta kangi või vajuta nuppu.</p>
             <section class="sim-live-input" aria-labelledby="simLiveTitle">
               <div class="sim-live-title"><h4 id="simLiveTitle" data-i18n="sim.controller.liveInput">Live input</h4><span id="simControllerCounts"></span></div>
               <div class="sim-live-invert-label" data-i18n="sim.controller.invert">Invert</div>
-              <div id="simLiveRows"></div>
+              <div class="sim-live-layout">
+                <div id="simLiveRows"></div>
+                <figure class="sim-stick-visual" id="simStickVisual">
+                  <svg viewBox="0 0 300 190" role="img" aria-labelledby="simStickTitle simStickDescription">
+                    <title id="simStickTitle" data-i18n="sim.controller.stickView">Puldi kangid</title>
+                    <desc id="simStickDescription" data-i18n="sim.controller.stickViewDescription">Pilt näitab vasaku ja parema kangi asendit reaalajas.</desc>
+                    <path class="sim-stick-body" d="M28 44 Q28 30 45 28 L255 28 Q272 30 272 44 L287 138 Q289 157 270 162 L30 162 Q11 157 13 138 Z"/>
+                    <path class="sim-stick-panel" d="M124 44 Q150 35 176 44 L181 67 L119 67 Z"/>
+                    <circle class="sim-stick-gimbal" cx="78" cy="105" r="43"/><circle class="sim-stick-ring" cx="78" cy="105" r="30"/>
+                    <circle class="sim-stick-gimbal" cx="222" cy="105" r="43"/><circle class="sim-stick-ring" cx="222" cy="105" r="30"/>
+                    <path class="sim-stick-crosshair" d="M78 68v74 M41 105h74 M222 68v74 M185 105h74"/>
+                    <text class="sim-stick-role" x="78" y="58" text-anchor="middle">THROTTLE ↑</text>
+                    <text class="sim-stick-role" x="78" y="158" text-anchor="middle">YAW ↔</text>
+                    <text class="sim-stick-role" x="222" y="58" text-anchor="middle">PITCH ↑</text>
+                    <text class="sim-stick-role" x="222" y="158" text-anchor="middle">ROLL ↔</text>
+                    <g id="simStickLeft" class="sim-stick-marker"><circle r="10"/><circle class="sim-stick-marker-core" r="3"/></g>
+                    <g id="simStickRight" class="sim-stick-marker"><circle r="10"/><circle class="sim-stick-marker-core" r="3"/></g>
+                    <text class="sim-stick-caption" x="78" y="175" text-anchor="middle" data-i18n="sim.controller.leftStick">VASAK</text>
+                    <text class="sim-stick-caption" x="222" y="175" text-anchor="middle" data-i18n="sim.controller.rightStick">PAREM</text>
+                  </svg>
+                  <figcaption id="simStickDevice" data-i18n="sim.controller.none">Pulti ei tuvastatud</figcaption>
+                </figure>
+              </div>
               <label class="sim-deadzone-row" for="simDeadzone"><span data-i18n="sim.controller.deadzone">Deadzone</span><input id="simDeadzone" type="range" min="0" max="20" step="0.5"><output id="simDeadzoneValue">3%</output></label>
             </section>
             <div class="sim-axis-settings" id="simAxisSettings"></div>
@@ -188,9 +218,9 @@
 
   <input type="file" id="fileIn" accept=".json,application/json" hidden>
 
-  <script src="js/i18n.js?v=theme-toggle-1"></script>
+  <script src="js/i18n.js?v=keyboard-config-1"></script>
   <script src="js/elements.js?v=dev"></script>
-  <script src="js/simulator.js?v=theme-toggle-1"></script>
-  <script src="js/app.js?v=theme-toggle-1"></script>
+  <script src="js/simulator.js?v=keyboard-config-1"></script>
+  <script src="js/app.js?v=keyboard-config-1"></script>
 </body>
 </html>

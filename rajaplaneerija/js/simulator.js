@@ -2,6 +2,18 @@
 
 /* Klaviatuuriga juhitav FPV-simulaator. Joonistab rajaplaneerija olemasoleva
    geomeetria perspektiivprojektsiooniga, et see töötaks ka võrguühenduseta. */
+const coDroneDefaultChannels = () => ({
+  // CoDrone EDU Mode 2: left Y = throttle, right X = roll,
+  // right Y = pitch, left X = yaw. Y teljed on Gamepadi kokkuleppe järgi ümber pööratud.
+  throttle: { axis: 1, invert: true }, roll: { axis: 2, invert: false },
+  pitch: { axis: 3, invert: true }, yaw: { axis: 0, invert: false },
+});
+const defaultKeyboardBindings = () => ({
+  forward: ['KeyW', 'ArrowUp'], backward: ['KeyS', 'ArrowDown'],
+  left: ['KeyA'], right: ['KeyD'], turnLeft: ['KeyQ', 'ArrowLeft'], turnRight: ['KeyE', 'ArrowRight'],
+  ascend: ['KeyR'], descend: ['KeyF'], boost: ['ShiftLeft', 'ShiftRight'],
+});
+
 class FlightSimulator {
   constructor(canvas, mapCanvas, ui, getScene, getLabels, onClose) {
     this.canvas = canvas;
@@ -16,6 +28,7 @@ class FlightSimulator {
     this.active = false;
     this.paused = false;
     this.keys = new Set();
+    this.keyboardBindingCapture = null;
     this.last = 0;
     this.loopToken = 0;
     this.elapsed = 0;
@@ -29,11 +42,27 @@ class FlightSimulator {
     this.pitch = 0;
     this.sceneBuilt = false;
     this.themeColors = Object.create(null);
+    this.pathDistances = [0];
+    this.pathLength = 0;
+    this.routeProgress = 0;
+    this.routeDirty = true;
     this.settingsOpen = false;
     this.resumeAfterSettings = false;
     this.gamepads = [];
     this.gamepadIndex = null;
+    this.controllerSource = 'gamepad';
     this.gamepadSignature = '';
+    this.coDronePort = null;
+    this.coDroneReader = null;
+    this.coDroneWriter = null;
+    this.coDroneAxes = [0, 0, 0, 0];
+    this.coDroneBuffer = new Uint8Array(0);
+    this.coDroneLastPacket = 0;
+    this.coDronePacketCount = 0;
+    this.coDroneConnectedAt = 0;
+    this.coDronePingTimer = 0;
+    this.controllerCalibration = null;
+    this.controllerCalibrationNotice = null;
     this.controllerStorageKey = 'droonirajaplaneerija.fpvpult';
     this.settingsStorageKey = 'droonirajaplaneerija.fpvcontrols';
     this.controls = this.loadControlSettings();
@@ -62,6 +91,7 @@ class FlightSimulator {
       matrix: gl.getUniformLocation(this.program, 'uMatrix'),
     };
     this.glTriangles = gl.createBuffer(); this.glLines = gl.createBuffer();
+    this.glRouteGlow = gl.createBuffer(); this.glRouteCore = gl.createBuffer();
     gl.enable(gl.DEPTH_TEST); gl.depthFunc(gl.LEQUAL);
     gl.enable(gl.BLEND); gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA);
   }
@@ -87,16 +117,101 @@ class FlightSimulator {
   setTheme() {
     this.themeColors = Object.create(null);
     this.sceneBuilt = false;
+    this.routeDirty = true;
     if (this.active) this.draw();
+  }
+
+  resetPathTrail() {
+    this.pathDistances = [0];
+    this.pathLength = 0;
+    for (let i = 1; i < (this.scene?.path.length || 0); i++) {
+      const a = this.scene.path[i - 1], b = this.scene.path[i];
+      this.pathLength += Math.hypot(b[0] - a[0], b[1] - a[1], b[2] - a[2]);
+      this.pathDistances.push(this.pathLength);
+    }
+    this.routeProgress = 0;
+    this.routeDirty = true;
+  }
+
+  routeAlpha(distanceAlongPath) {
+    const behind = this.routeProgress - distanceAlongPath;
+    if (behind <= 0) return 0.72;
+    // Hoia trajektoor drooni vahetus läheduses peenike ja lase sellel
+    // sujuvalt kaduda, et kaamera lähedal olev toru ei veniks üle ekraani.
+    const fadeLength = 3.2;
+    if (behind >= fadeLength) return 0;
+    const t = behind / fadeLength;
+    const fade = 1 - t * t * (3 - 2 * t);
+    return 0.68 * fade;
+  }
+
+  updatePathTrail(dt) {
+    if (!this.scene || this.scene.path.length < 2) return;
+    const minDistance = Math.max(0, this.routeProgress - 0.8);
+    const maxDistance = Math.min(this.pathLength, this.routeProgress + Math.max(0.28, Math.hypot(...this.vel) * dt * 2.2 + 0.12));
+    let nearest = this.routeProgress, nearestSq = Infinity;
+    for (let i = 1; i < this.scene.path.length; i++) {
+      const a = this.scene.path[i - 1], b = this.scene.path[i], start = this.pathDistances[i - 1], end = this.pathDistances[i];
+      const length = end - start;
+      if (length < 1e-6 || end < minDistance || start > maxDistance) continue;
+      const lo = Math.max(0, (minDistance - start) / length), hi = Math.min(1, (maxDistance - start) / length);
+      const dx = b[0] - a[0], dy = b[1] - a[1], dz = b[2] - a[2];
+      const t = Math.max(lo, Math.min(hi, ((this.pos[0] - a[0]) * dx + (this.pos[1] - a[1]) * dy + (this.pos[2] - a[2]) * dz) / (length * length)));
+      const x = a[0] + dx * t, y = a[1] + dy * t, z = a[2] + dz * t;
+      const d2 = (this.pos[0] - x) ** 2 + (this.pos[1] - y) ** 2 + (this.pos[2] - z) ** 2;
+      if (d2 < nearestSq) { nearestSq = d2; nearest = start + length * t; }
+    }
+    if (nearestSq < 64 && nearest > this.routeProgress + 0.025) {
+      this.routeProgress = nearest;
+      this.routeDirty = true;
+    }
   }
 
   buildGLScene() {
     const triangles = [], lines = [];
     const addLine = (a, b, color) => { const col = this.glColor(color); lines.push(...this.glWorld(a), ...col, ...this.glWorld(b), ...col); };
+    const addTube = (a, b, color, diameter) => {
+      const delta = b.map((v, i) => v - a[i]), length = Math.hypot(...delta);
+      if (length < 1e-6) return;
+      const tangent = delta.map(v => v / length), ref = Math.abs(tangent[2]) > 0.92 ? [0, 1, 0] : [0, 0, 1];
+      const cross = (u, v) => [u[1] * v[2] - u[2] * v[1], u[2] * v[0] - u[0] * v[2], u[0] * v[1] - u[1] * v[0]];
+      const u0 = cross(tangent, ref), uLength = Math.hypot(...u0) || 1, u = u0.map(v => v / uLength), v = cross(tangent, u);
+      const radius = Math.max(0.007, Number(diameter) / 2), sides = 10, base = this.glColor(color);
+      const light = [-0.35, -0.45, 0.82], lightLength = Math.hypot(...light), emit = (point, radial) => {
+        const shade = 0.62 + 0.38 * Math.max(0, radial.reduce((sum, x, i) => sum + x * light[i] / lightLength, 0));
+        const shaded = [base[0] * shade, base[1] * shade, base[2] * shade, base[3]];
+        triangles.push(...this.glWorld(point), ...shaded);
+      };
+      for (let i = 0; i < sides; i++) {
+        const a0 = i / sides * Math.PI * 2, a1 = (i + 1) / sides * Math.PI * 2;
+        const radial0 = u.map((x, j) => x * Math.cos(a0) + v[j] * Math.sin(a0));
+        const radial1 = u.map((x, j) => x * Math.cos(a1) + v[j] * Math.sin(a1));
+        const offset = radial => radial.map(x => x * radius);
+        const add = (p, o) => p.map((x, j) => x + o[j]);
+        const a0p = add(a, offset(radial0)), a1p = add(a, offset(radial1));
+        const b0p = add(b, offset(radial0)), b1p = add(b, offset(radial1));
+        emit(a0p, radial0); emit(b0p, radial0); emit(a1p, radial1);
+        emit(a1p, radial1); emit(b0p, radial0); emit(b1p, radial1);
+      }
+    };
     const addPoly = (pts, color) => {
       if (pts.length < 3) return;
       const col = this.glColor(color), base = this.glWorld(pts[0]);
       for (let i = 1; i < pts.length - 1; i++) triangles.push(...base, ...col, ...this.glWorld(pts[i]), ...col, ...this.glWorld(pts[i + 1]), ...col);
+    };
+    const addSolidPoly = (pts, color, thickness = 0.02) => {
+      if (pts.length < 3) return;
+      const a = pts[0], ab = pts[1].map((x, i) => x - a[i]), ac = pts[2].map((x, i) => x - a[i]);
+      const normal0 = [ab[1] * ac[2] - ab[2] * ac[1], ab[2] * ac[0] - ab[0] * ac[2], ab[0] * ac[1] - ab[1] * ac[0]];
+      const nLength = Math.hypot(...normal0) || 1, normal = normal0.map(x => x / nLength);
+      const back = pts.map(p => p.map((x, i) => x - normal[i] * thickness));
+      addPoly(pts, color);
+      addPoly(back, color);
+      const baseColor = this.glColor(color), sideColor = `rgba(${Math.round(baseColor[0] * 255 * 0.58)},${Math.round(baseColor[1] * 255 * 0.58)},${Math.round(baseColor[2] * 255 * 0.58)},${baseColor[3]})`;
+      for (let i = 0; i < pts.length; i++) {
+        const j = (i + 1) % pts.length;
+        addPoly([pts[i], pts[j], back[j], back[i]], sideColor);
+      }
     };
     const h = this.scene.hall;
     addPoly([[0, 0, 0], [h.w, 0, 0], [h.w, h.l, 0], [0, h.l, 0]], this.themeColor('--sim-floor', '#cbd5e1'));
@@ -110,14 +225,65 @@ class FlightSimulator {
     const grid = this.themeColor('--sim-grid-line', 'rgba(100,116,139,.25)');
     for (let x = 0; x <= h.w + 1e-6; x += 1) addLine([x, 0, 0.008], [x, h.l, 0.008], grid);
     for (let y = 0; y <= h.l + 1e-6; y += 1) addLine([0, y, 0.008], [h.w, y, 0.008], grid);
-    for (const el of this.scene.elements) for (const p of el) p.k === 'p' ? addPoly(p.pts, p.f || '#94a3b8') : addLine(p.a, p.b, p.c);
-    for (let i = 1; i < this.scene.path.length; i++) addLine(this.scene.path[i - 1], this.scene.path[i], 'rgba(124,58,237,.7)');
+    for (const el of this.scene.elements) for (const p of el) p.k === 'p' ? addSolidPoly(p.pts, p.f || '#94a3b8') : addTube(p.a, p.b, p.c, p.w || 0.025);
     this.triangleCount = triangles.length / 7;
     this.lineCount = lines.length / 7;
     const gl = this.gl;
     gl.bindBuffer(gl.ARRAY_BUFFER, this.glTriangles); gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(triangles), gl.STATIC_DRAW);
     gl.bindBuffer(gl.ARRAY_BUFFER, this.glLines); gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(lines), gl.STATIC_DRAW);
     this.sceneBuilt = true;
+  }
+
+  updateGLRoute() {
+    const rgb = this.themeColor('--sim-route-rgb', '124,58,237'), path = this.scene.path;
+    const cross = (a, b) => [a[1] * b[2] - a[2] * b[1], a[2] * b[0] - a[0] * b[2], a[0] * b[1] - a[1] * b[0]];
+    const normalize = v => { const n = Math.hypot(...v) || 1; return v.map(x => x / n); };
+    const sides = 10, light = normalize([-0.35, -0.45, 0.82]);
+    const makeTube = (radius, alphaScale) => {
+      const buffer = [], rings = [];
+      let previousSide = null;
+      for (let i = 0; i < path.length; i++) {
+        const before = path[Math.max(0, i - 1)], after = path[Math.min(path.length - 1, i + 1)];
+        const tangent = normalize(after.map((x, j) => x - before[j]));
+        let side = previousSide && previousSide.map((x, j) => x - tangent[j] * previousSide.reduce((sum, q, k) => sum + q * tangent[k], 0));
+        if (!side || Math.hypot(...side) < 1e-5) {
+          const ref = Math.abs(tangent[2]) > 0.92 ? [0, 1, 0] : [0, 0, 1];
+          side = cross(tangent, ref);
+        }
+        side = normalize(side);
+        const up = normalize(cross(tangent, side));
+        previousSide = side;
+        const alpha = this.routeAlpha(this.pathDistances[i]) * alphaScale;
+        const ring = [];
+        for (let j = 0; j < sides; j++) {
+          const angle = j / sides * Math.PI * 2;
+          const radial = side.map((x, k) => x * Math.cos(angle) + up[k] * Math.sin(angle));
+          ring.push({ point: path[i].map((x, k) => x + radial[k] * radius), radial, alpha });
+        }
+        rings.push(ring);
+      }
+      const emit = vertex => {
+        const color = this.glColor(`rgba(${rgb},${vertex.alpha})`);
+        const shade = 0.72 + 0.28 * Math.max(0, vertex.radial.reduce((sum, x, i) => sum + x * light[i], 0));
+        buffer.push(...this.glWorld(vertex.point), color[0] * shade, color[1] * shade, color[2] * shade, color[3]);
+      };
+      for (let i = 0; i < rings.length - 1; i++) for (let j = 0; j < sides; j++) {
+        const next = (j + 1) % sides, a = rings[i][j], b = rings[i + 1][j], c = rings[i][next], d = rings[i + 1][next];
+        emit(a); emit(b); emit(c);
+        emit(c); emit(b); emit(d);
+      }
+      return buffer;
+    };
+    // Väike maailmaruumi läbimõõt hoiab joone ka FPV-kaamera lähedal kitsana.
+    const glow = makeTube(0.010, 0.045), core = makeTube(0.0035, 1);
+    const gl = this.gl;
+    gl.bindBuffer(gl.ARRAY_BUFFER, this.glRouteGlow);
+    gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(glow), gl.DYNAMIC_DRAW);
+    gl.bindBuffer(gl.ARRAY_BUFFER, this.glRouteCore);
+    gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(core), gl.DYNAMIC_DRAW);
+    this.routeGlowCount = glow.length / 7;
+    this.routeCoreCount = core.length / 7;
+    this.routeDirty = false;
   }
 
   lookAt(eye, target, up) {
@@ -142,6 +308,7 @@ class FlightSimulator {
   drawWebGL() {
     const gl = this.gl, w = this.canvas.width, h = this.canvas.height;
     if (!this.sceneBuilt) this.buildGLScene();
+    if (this.routeDirty) this.updateGLRoute();
     gl.viewport(0, 0, w, h);
     const background = this.glColor(this.themeColor('--sim-sky-top', '#7dd3fc'));
     gl.clearColor(background[0], background[1], background[2], 1); gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
@@ -160,14 +327,19 @@ class FlightSimulator {
     };
     bind(this.glTriangles); gl.drawArrays(gl.TRIANGLES, 0, this.triangleCount);
     bind(this.glLines); gl.lineWidth(1.5); gl.drawArrays(gl.LINES, 0, this.lineCount);
+    gl.depthMask(false);
+    bind(this.glRouteGlow); gl.drawArrays(gl.TRIANGLES, 0, this.routeGlowCount);
+    bind(this.glRouteCore); gl.drawArrays(gl.TRIANGLES, 0, this.routeCoreCount);
+    gl.depthMask(true);
   }
 
   bind() {
     this.onKeyDown = e => {
       if (!this.active) return;
+      if (this.keyboardBindingCapture) { this.handleKeyboardBindingCapture(e); return; }
       if (this.settingsOpen) {
-        if (e.key === 'Escape') { e.preventDefault(); this.closeSettings(); }
-        if (e.key === 'Tab') {
+        if (e.code === 'Escape') { e.preventDefault(); this.closeSettings(); }
+        if (e.code === 'Tab') {
           const focusable = [...this.ui.settings.querySelectorAll('button:not(:disabled), input:not(:disabled), select:not(:disabled)')];
           if (!focusable.length) { e.preventDefault(); return; }
           const first = focusable[0], last = focusable[focusable.length - 1];
@@ -176,13 +348,13 @@ class FlightSimulator {
         }
         return;
       }
-      if (['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', ' '].includes(e.key)) e.preventDefault();
-      if (e.key === 'Escape') { this.close(); return; }
-      if (e.key === ' ' && !e.repeat) { this.pause(); return; }
-      this.keys.add(e.key.toLowerCase());
+      if (['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'Space'].includes(e.code)) e.preventDefault();
+      if (e.code === 'Escape') { this.close(); return; }
+      if (e.code === 'Space' && !e.repeat) { this.pause(); return; }
+      this.keys.add(e.code);
     };
-    this.onKeyUp = e => this.keys.delete(e.key.toLowerCase());
-    this.onBlur = () => this.keys.clear();
+    this.onKeyUp = e => this.keys.delete(e.code);
+    this.onBlur = () => { this.keys.clear(); this.cancelKeyboardBindingCapture(false); };
     this.onGamepadChange = () => this.scanGamepads(false);
     window.addEventListener('keydown', this.onKeyDown);
     window.addEventListener('keyup', this.onKeyUp);
@@ -203,6 +375,8 @@ class FlightSimulator {
 
   closeSettings() {
     if (!this.settingsOpen) return;
+    this.cancelControllerCalibration();
+    this.cancelKeyboardBindingCapture(false);
     this.settingsOpen = false;
     this.ui.settings.hidden = true;
     if (this.resumeAfterSettings && this.paused) this.pause();
@@ -214,21 +388,39 @@ class FlightSimulator {
   loadControlSettings() {
     const defaults = {
       mode: 'keyboard', deadzone: 0.03,
+      channelProfileVersion: 1,
+      keyboard: defaultKeyboardBindings(),
       channels: {
         throttle: { axis: 1, invert: true }, roll: { axis: 2, invert: false },
         pitch: { axis: 3, invert: true }, yaw: { axis: 0, invert: false },
       },
+      coDroneChannels: coDroneDefaultChannels(),
+      coDroneCustomized: false,
     };
     try {
       const stored = JSON.parse(localStorage.getItem(this.settingsStorageKey));
       if (!stored || typeof stored !== 'object') return defaults;
       defaults.mode = stored.mode === 'controller' ? 'controller' : 'keyboard';
+      defaults.coDroneCustomized = stored.coDroneCustomized === true;
       defaults.deadzone = Number.isFinite(stored.deadzone) ? Math.max(0, Math.min(0.2, stored.deadzone)) : defaults.deadzone;
+      const usedKeys = new Set();
+      for (const action of Object.keys(defaults.keyboard)) {
+        const saved = Array.isArray(stored.keyboard?.[action]) ? stored.keyboard[action] : defaults.keyboard[action];
+        let binding = saved.filter(code => typeof code === 'string' && code.length <= 24 && !usedKeys.has(code));
+        if (!binding.length) binding = defaults.keyboard[action].filter(code => !usedKeys.has(code));
+        defaults.keyboard[action] = binding.length ? binding : defaults.keyboard[action];
+        defaults.keyboard[action].forEach(code => usedKeys.add(code));
+      }
       for (const key of Object.keys(defaults.channels)) {
-        if (stored.channels && stored.channels[key]) {
+        if (stored.channelProfileVersion === 1 && stored.channels && stored.channels[key]) {
           const channel = stored.channels[key];
           if (Number.isInteger(channel.axis) && channel.axis >= 0 && channel.axis < 32) defaults.channels[key].axis = channel.axis;
           defaults.channels[key].invert = Boolean(channel.invert);
+        }
+        if (stored.coDroneChannels && stored.coDroneChannels[key]) {
+          const channel = stored.coDroneChannels[key];
+          if (Number.isInteger(channel.axis) && channel.axis >= 0 && channel.axis < 4) defaults.coDroneChannels[key].axis = channel.axis;
+          defaults.coDroneChannels[key].invert = Boolean(channel.invert);
         }
       }
     } catch (e) { /* salvestus pole saadaval */ }
@@ -239,7 +431,13 @@ class FlightSimulator {
     try { localStorage.setItem(this.settingsStorageKey, JSON.stringify(this.controls)); } catch (e) { /* salvestus pole saadaval */ }
   }
 
+  activeChannels() {
+    return this.controllerSource === 'codrone' ? this.controls.coDroneChannels : this.controls.channels;
+  }
+
   setControlMode(mode) {
+    if (mode !== 'keyboard') this.cancelKeyboardBindingCapture(false);
+    if (mode !== 'controller') this.cancelControllerCalibration();
     this.controls.mode = mode === 'controller' ? 'controller' : 'keyboard';
     this.keys.clear();
     this.saveControlSettings();
@@ -254,15 +452,17 @@ class FlightSimulator {
   }
 
   setChannelAxis(channel, axis) {
-    if (!this.controls.channels[channel]) return;
-    this.controls.channels[channel].axis = Math.max(0, Math.min(31, Number(axis) || 0));
+    const channels = this.activeChannels();
+    if (!channels[channel]) return;
+    channels[channel].axis = Math.max(0, Math.min(this.controllerSource === 'codrone' ? 3 : 31, Number(axis) || 0));
     this.saveControlSettings();
     this.buildControlRows();
   }
 
   setChannelInvert(channel, checked) {
-    if (!this.controls.channels[channel]) return;
-    this.controls.channels[channel].invert = Boolean(checked);
+    const channels = this.activeChannels();
+    if (!channels[channel]) return;
+    channels[channel].invert = Boolean(checked);
     this.saveControlSettings();
     this.refreshLiveInput();
   }
@@ -278,7 +478,110 @@ class FlightSimulator {
       this.scanGamepads(false);
       this.buildControlRows();
       this.refreshLiveInput();
+    } else {
+      this.buildKeyboardBindings();
     }
+  }
+
+  buildKeyboardBindings() {
+    if (!this.settingsOpen || !this.ui.keyboardBindings) return;
+    const labels = this.getLabels(), names = {
+      forward: labels.keyboardForward, backward: labels.keyboardBackward, left: labels.keyboardLeft, right: labels.keyboardRight,
+      turnLeft: labels.keyboardYawLeft, turnRight: labels.keyboardYawRight, ascend: labels.keyboardAscend,
+      descend: labels.keyboardDescend, boost: labels.keyboardBoost,
+    };
+    this.ui.keyboardBindings.replaceChildren();
+    for (const [action, label] of Object.entries(names)) {
+      const row = document.createElement('div'); row.className = 'sim-keyboard-row';
+      const name = document.createElement('span'); name.textContent = label;
+      const current = document.createElement('kbd'); current.textContent = this.formatKeyBinding(this.controls.keyboard[action]);
+      const button = document.createElement('button'); button.type = 'button'; button.dataset.keyAction = action;
+      button.textContent = this.keyboardBindingCapture === action ? labels.keyboardPressKey : labels.keyboardChange;
+      button.addEventListener('click', () => this.startKeyboardBindingCapture(action));
+      row.append(name, current, button);
+      this.ui.keyboardBindings.append(row);
+    }
+    if (this.ui.keyboardReset) this.ui.keyboardReset.onclick = () => this.resetKeyboardBindings();
+  }
+
+  formatKeyBinding(codes) {
+    const labels = this.getLabels();
+    const friendly = {
+      ArrowUp: labels.keyboardKeyArrowUp, ArrowDown: labels.keyboardKeyArrowDown,
+      ArrowLeft: labels.keyboardKeyArrowLeft, ArrowRight: labels.keyboardKeyArrowRight,
+      ShiftLeft: labels.keyboardKeyShift, ShiftRight: labels.keyboardKeyShift,
+      Space: labels.keyboardKeySpace,
+    };
+    const names = codes.map(code => friendly[code] || (code.startsWith('Key') ? code.slice(3) : code.startsWith('Digit') ? code.slice(5) : code.replace('Numpad', 'Num ')));
+    return [...new Set(names)].join(' / ');
+  }
+
+  startKeyboardBindingCapture(action) {
+    if (this.keyboardBindingCapture === action) {
+      this.keyboardBindingCapture = null;
+      this.ui.keyboardBindingStatus.textContent = this.getLabels().keyboardCaptureCancelled;
+    } else {
+      this.keyboardBindingCapture = action;
+      this.ui.keyboardBindingStatus.textContent = this.getLabels().keyboardPressKey;
+    }
+    this.buildKeyboardBindings();
+    this.ui.keyboardBindings.querySelector(`[data-key-action="${action}"]`)?.focus();
+  }
+
+  cancelKeyboardBindingCapture(showMessage = true) {
+    const action = this.keyboardBindingCapture;
+    if (!action) return;
+    this.keyboardBindingCapture = null;
+    if (showMessage && this.ui.keyboardBindingStatus) this.ui.keyboardBindingStatus.textContent = this.getLabels().keyboardCaptureCancelled;
+    this.buildKeyboardBindings();
+  }
+
+  handleKeyboardBindingCapture(event) {
+    const action = this.keyboardBindingCapture;
+    if (!action) return false;
+    event.preventDefault();
+    if (event.code === 'Escape') {
+      this.cancelKeyboardBindingCapture(true);
+      this.ui.keyboardBindings.querySelector(`[data-key-action="${action}"]`)?.focus();
+      return true;
+    }
+    const labels = this.getLabels();
+    if (event.code === 'Tab' || /^(Control|Alt|Meta)/.test(event.code)) return true;
+    if (event.code === 'Space') {
+      this.ui.keyboardBindingStatus.textContent = labels.keyboardKeyUnavailable;
+      return true;
+    }
+    const duplicate = Object.entries(this.controls.keyboard).find(([other, codes]) => other !== action && codes.includes(event.code));
+    if (duplicate) {
+      this.ui.keyboardBindingStatus.textContent = `${labels.keyboardKeyInUse} ${this.keyboardActionLabel(duplicate[0])}`;
+      return true;
+    }
+    this.controls.keyboard[action] = [event.code];
+    this.keyboardBindingCapture = null;
+    this.ui.keyboardBindingStatus.textContent = '';
+    this.keys.clear();
+    this.saveControlSettings();
+    this.buildKeyboardBindings();
+    this.updateControlHint();
+    this.ui.keyboardBindings.querySelector(`[data-key-action="${action}"]`)?.focus();
+    return true;
+  }
+
+  keyboardActionLabel(action) {
+    const labels = this.getLabels();
+    return ({ forward: labels.keyboardForward, backward: labels.keyboardBackward, left: labels.keyboardLeft, right: labels.keyboardRight,
+      turnLeft: labels.keyboardYawLeft, turnRight: labels.keyboardYawRight, ascend: labels.keyboardAscend,
+      descend: labels.keyboardDescend, boost: labels.keyboardBoost })[action] || action;
+  }
+
+  resetKeyboardBindings() {
+    this.keyboardBindingCapture = null;
+    this.controls.keyboard = defaultKeyboardBindings();
+    this.keys.clear();
+    this.saveControlSettings();
+    this.ui.keyboardBindingStatus.textContent = this.getLabels().keyboardResetDone;
+    this.buildKeyboardBindings();
+    this.updateControlHint();
   }
 
   buildControlRows() {
@@ -304,18 +607,19 @@ class FlightSimulator {
     }
     this.ui.axisSettings.replaceChildren();
     const selected = this.gamepads.find(p => p.index === this.gamepadIndex);
+    const axisCount = this.controllerSource === 'codrone' && this.coDronePort ? 4 : (selected ? selected.axes.length : 0);
     for (const key of channels) {
       const row = document.createElement('label'); row.className = 'sim-axis-row';
       const name = document.createElement('span'); name.textContent = labels['channel' + key[0].toUpperCase() + key.slice(1)];
       const select = document.createElement('select'); select.dataset.channel = key;
-      const count = selected ? selected.axes.length : 0;
+      const count = axisCount;
       if (!count) {
         const option = document.createElement('option'); option.value = ''; option.textContent = labels.settingsNoAxes; select.append(option); select.disabled = true;
       } else {
         for (let i = 0; i < count; i++) { const option = document.createElement('option'); option.value = String(i); option.textContent = `${labels.controllerAxes} ${i + 1}`; select.append(option); }
-        const axis = this.controls.channels[key].axis;
-        if (axis >= count) this.controls.channels[key].axis = Math.min(count - 1, ({ throttle: 1, roll: 2, pitch: 3, yaw: 0 })[key]);
-        select.value = String(this.controls.channels[key].axis);
+        const mappings = this.activeChannels(), axis = mappings[key].axis;
+        if (axis >= count) mappings[key].axis = Math.min(count - 1, ({ throttle: 1, roll: 2, pitch: 3, yaw: 0 })[key]);
+        select.value = String(mappings[key].axis);
         select.addEventListener('change', () => this.setChannelAxis(key, select.value));
       }
       row.append(name, select); this.ui.axisSettings.append(row);
@@ -324,7 +628,7 @@ class FlightSimulator {
       const key = row.dataset.channel;
       row.querySelector('.sim-live-name').textContent = labels['channel' + key[0].toUpperCase() + key.slice(1)];
       row.querySelector('.sim-live-invert input').setAttribute('aria-label', `${labels['channel' + key[0].toUpperCase() + key.slice(1)]} · ${labels.invertLabel}`);
-      row.querySelector('.sim-live-invert input').checked = this.controls.channels[key].invert;
+      row.querySelector('.sim-live-invert input').checked = this.activeChannels()[key].invert;
     });
     this.saveControlSettings();
   }
@@ -332,13 +636,27 @@ class FlightSimulator {
   updateControlHint() {
     if (!this.ui.controlHint) return;
     const labels = this.getLabels();
-    this.ui.controlHint.textContent = this.controls.mode === 'controller' ? labels.settingsControllerHint : labels.controlsHint;
+    this.ui.controlHint.textContent = this.controls.mode === 'controller' ? labels.settingsControllerHint : labels.keyboardHelp;
   }
 
   readControllerInput() {
     const values = { throttle: 0, roll: 0, pitch: 0, yaw: 0 };
     this.gamepadAvailable = false;
-    if (this.controls.mode !== 'controller' || this.gamepadIndex == null || !navigator.getGamepads) return values;
+    if (this.controls.mode !== 'controller') return values;
+    if (this.controllerSource === 'codrone' && this.coDronePort) {
+      // Kui jadaside hangub, ära hoia viimast juhtkäsku aktiivsena.
+      if (!this.coDroneLastPacket || Date.now() - this.coDroneLastPacket > 1200) return values;
+      this.gamepadAvailable = true;
+      for (const key of Object.keys(values)) {
+        const mapping = this.controls.coDroneChannels[key];
+        let value = Number(this.coDroneAxes[mapping.axis]) || 0;
+        if (mapping.invert) value *= -1;
+        const magnitude = Math.abs(value), dz = this.controls.deadzone;
+        values[key] = magnitude <= dz ? 0 : Math.sign(value) * (magnitude - dz) / (1 - dz);
+      }
+      return values;
+    }
+    if (this.gamepadIndex == null || !navigator.getGamepads) return values;
     try {
       const pad = navigator.getGamepads()[this.gamepadIndex];
       if (!pad || !pad.connected) return values;
@@ -356,7 +674,27 @@ class FlightSimulator {
 
   refreshLiveInput() {
     this.liveInput = this.readControllerInput();
+    this.updateCalibrationAvailability();
     if (!this.settingsOpen || this.controls.mode !== 'controller') return;
+    if (this.controllerCalibration && Date.now() - this.controllerCalibration.phaseStarted > 12000) this.failControllerCalibration();
+    const rawAxes = this.readRawControllerAxes();
+    if (this.controllerCalibration && rawAxes) this.advanceControllerCalibration(rawAxes);
+    if (this.controllerSource === 'codrone' && this.coDronePort) {
+      const labels = this.getLabels(), age = Date.now() - (this.coDroneLastPacket || this.coDroneConnectedAt);
+      if (this.controllerCalibrationNotice && this.controllerCalibrationNotice.until > Date.now()) {
+        this.ui.controllerState.textContent = this.controllerCalibrationNotice.text;
+      } else if (this.controllerCalibration) {
+        // Kalibreerimise samm jääb nähtavale kuni järgmise sisendi tuvastamiseni.
+      } else if (!this.coDronePacketCount) {
+        this.ui.controllerState.textContent = age > 2500 ? labels.codroneNoData : labels.codroneWaiting;
+      } else if (age > 2500) {
+        this.ui.controllerState.textContent = labels.codroneNoData;
+        this.ui.controllerState.classList.remove('connected');
+      } else {
+        this.ui.controllerState.textContent = labels.codroneConnected;
+        this.ui.controllerState.classList.add('connected');
+      }
+    }
     const rows = this.ui.liveRows.querySelectorAll('.sim-live-row');
     rows.forEach(row => {
       const key = row.dataset.channel, value = this.liveInput[key];
@@ -370,6 +708,60 @@ class FlightSimulator {
         output.textContent = `${Math.round(value * 100)}%`;
       }
     });
+    this.updateStickVisual();
+  }
+
+  readRawControllerAxes() {
+    if (this.controllerSource === 'codrone' && this.coDronePort) {
+      return Date.now() - this.coDroneLastPacket <= 1200 ? this.coDroneAxes.slice() : null;
+    }
+    if (this.controllerSource !== 'gamepad' || this.gamepadIndex == null || !navigator.getGamepads) return null;
+    try {
+      const pad = navigator.getGamepads()[this.gamepadIndex];
+      return pad?.connected ? Array.from(pad.axes, value => Number(value) || 0) : null;
+    } catch (e) { return null; }
+  }
+
+  updateCalibrationAvailability() {
+    const button = this.ui.controllerCalibrate;
+    if (!button) return;
+    const axes = this.readRawControllerAxes();
+    const connected = Boolean(axes && axes.length >= 4);
+    button.disabled = Boolean(this.controllerCalibration || !connected);
+  }
+
+  cancelControllerCalibration() {
+    const calibration = this.controllerCalibration;
+    if (!calibration) return;
+    if (calibration.source === 'codrone') this.controls.coDroneChannels = calibration.original;
+    else this.controls.channels = calibration.original;
+    this.controllerCalibration = null;
+    this.saveControlSettings();
+    this.updateCalibrationAvailability();
+  }
+
+  updateStickVisual() {
+    if (!this.ui.stickVisual) return;
+    const labels = this.getLabels();
+    const connected = this.gamepadAvailable;
+    this.ui.stickVisual.classList.toggle('connected', connected);
+    if (this.controllerSource === 'codrone' && this.coDronePort) {
+      this.ui.stickDevice.textContent = labels.codroneName;
+    } else if (connected) {
+      const selected = this.gamepads.find(p => p.index === this.gamepadIndex);
+      this.ui.stickDevice.textContent = selected?.id || labels.controllerDevice;
+    } else {
+      this.ui.stickDevice.textContent = labels.controllerNone;
+    }
+
+    // Kasuta aktiivsete juhtkanalite väärtusi, nii järgib pilt ka kasutaja telgede seadeid.
+    const place = (marker, x, y, originX) => {
+      const dx = Math.max(-1, Math.min(1, x)) * 26;
+      const dy = Math.max(-1, Math.min(1, y)) * 26;
+      marker.setAttribute('transform', `translate(${originX + dx} ${105 + dy})`);
+    };
+    place(this.ui.stickLeft, this.liveInput.yaw, -this.liveInput.throttle, 78);
+    place(this.ui.stickRight, this.liveInput.roll, -this.liveInput.pitch, 222);
   }
 
   openController() {
@@ -382,6 +774,14 @@ class FlightSimulator {
   }
 
   selectGamepad(indexValue) {
+    this.cancelControllerCalibration();
+    if (indexValue === 'codrone' && this.coDronePort) {
+      this.controllerSource = 'codrone';
+      this.buildControlRows();
+      this.refreshLiveInput();
+      return;
+    }
+    this.controllerSource = 'gamepad';
     const index = indexValue === '' ? null : Number(indexValue);
     this.gamepadIndex = Number.isInteger(index) ? index : null;
     const selected = this.gamepads.find(p => p.index === this.gamepadIndex);
@@ -391,6 +791,246 @@ class FlightSimulator {
     } catch (e) { /* salvestus pole saadaval */ }
     this.renderGamepads(true);
     this.buildControlRows();
+    this.refreshLiveInput();
+  }
+
+  async toggleCoDrone() {
+    if (this.coDronePort) return this.disconnectCoDrone();
+    const labels = this.getLabels();
+    if (!navigator.serial) {
+      this.ui.controllerState.textContent = labels.codroneUnsupported;
+      this.ui.controllerState.classList.remove('connected');
+      return;
+    }
+    this.ui.coDroneConnect.disabled = true;
+    this.ui.controllerState.textContent = labels.codroneWaiting;
+    this.ui.controllerState.classList.remove('connected');
+    try {
+      const port = await navigator.serial.requestPort();
+      await port.open({ baudRate: 57600, dataBits: 8, stopBits: 1, parity: 'none' });
+      this.coDronePort = port;
+      // CoDrone EDU telgede paigutus on kindel. Rakenda see igal ühendamisel,
+      // et varasem käsitsi või ekslikult salvestatud seadistus ei juhiks valesti.
+      if (!this.controls.coDroneCustomized) this.controls.coDroneChannels = coDroneDefaultChannels();
+      this.saveControlSettings();
+      this.coDroneAxes = [0, 0, 0, 0];
+      this.coDroneBuffer = new Uint8Array(0);
+      this.coDroneLastPacket = 0;
+      this.coDronePacketCount = 0;
+      this.coDroneDisconnectMessage = '';
+      this.coDroneConnectedAt = Date.now();
+      this.controllerCalibration = null;
+      this.controllerCalibrationNotice = null;
+      this.controllerSource = 'codrone';
+      this.coDroneWriter = port.writable.getWriter();
+      this.coDroneReader = port.readable.getReader();
+      this.ui.coDroneConnect.textContent = labels.codroneDisconnect;
+      this.ui.coDroneConnect.disabled = false;
+      this.updateCalibrationAvailability();
+      this.setControlMode('controller');
+      this.scanGamepads(true);
+      this.ui.controllerState.textContent = labels.codroneWaiting;
+      const reader = this.coDroneReader;
+      void this.readCoDrone(reader, port);
+      this.coDronePingTimer = window.setInterval(() => { void this.sendCoDronePing(); }, 160);
+    } catch (error) {
+      this.ui.coDroneConnect.disabled = false;
+      const message = error?.name === 'NotFoundError' ? labels.codroneError : `${labels.codroneError}: ${error?.message || error}`;
+      if (this.coDronePort) await this.disconnectCoDrone(message);
+      this.ui.controllerState.textContent = message;
+      this.ui.controllerState.classList.remove('connected');
+    }
+  }
+
+  coDroneCrc(bytes) {
+    let crc = 0x0000;
+    for (const byte of bytes) {
+      crc ^= byte << 8;
+      for (let bit = 0; bit < 8; bit++) crc = (crc & 0x8000) ? ((crc << 1) ^ 0x1021) & 0xffff : (crc << 1) & 0xffff;
+    }
+    return crc;
+  }
+
+  async sendCoDronePing() {
+    if (!this.coDroneWriter) return;
+    // CoDrone EDU: Ping (0x01), Base (0x70) -> Controller (0x20).
+    const stamp = Date.now();
+    const payload = [stamp & 0xff, (stamp >>> 8) & 0xff, (stamp >>> 16) & 0xff, (stamp >>> 24) & 0xff, 0, 0, 0, 0];
+    const body = new Uint8Array([0x01, payload.length, 0x70, 0x20, ...payload]);
+    const crc = this.coDroneCrc(body);
+    const packet = new Uint8Array([0x0a, 0x55, ...body, crc & 0xff, crc >>> 8]);
+    try { await this.coDroneWriter.write(packet); }
+    catch (error) {
+      this.ui.controllerState.textContent = `${this.getLabels().codroneError}: ${error?.message || error}`;
+      this.ui.controllerState.classList.remove('connected');
+    }
+  }
+
+  readCoDrone(reader, port) {
+    return (async () => {
+      try {
+        while (this.coDronePort === port) {
+          const { value, done } = await reader.read();
+          if (done) break;
+          if (value?.length) this.parseCoDroneBytes(value);
+        }
+      } catch (error) {
+        let disconnectMessage = '';
+        if (this.coDronePort === port) {
+          disconnectMessage = `${this.getLabels().codroneError}: ${error?.message || error}`;
+        }
+        if (disconnectMessage) this.coDroneDisconnectMessage = disconnectMessage;
+      } finally {
+        try { reader.releaseLock(); } catch (error) { /* lugemislukk vabastati juba */ }
+        if (this.coDronePort === port) await this.disconnectCoDrone(this.coDroneDisconnectMessage || this.getLabels().codroneNoData);
+      }
+    })();
+  }
+
+  parseCoDroneBytes(chunk) {
+    const joined = new Uint8Array(this.coDroneBuffer.length + chunk.length);
+    joined.set(this.coDroneBuffer); joined.set(chunk, this.coDroneBuffer.length);
+    let offset = 0;
+    while (offset + 8 <= joined.length) {
+      if (joined[offset] !== 0x0a || joined[offset + 1] !== 0x55) { offset++; continue; }
+      const length = joined[offset + 3], frameLength = length + 8;
+      if (offset + frameLength > joined.length) break;
+      const body = joined.subarray(offset + 2, offset + 6 + length);
+      const actualCrc = joined[offset + 6 + length] | (joined[offset + 7 + length] << 8);
+      if (this.coDroneCrc(body) !== actualCrc) { offset++; continue; }
+      if (joined[offset + 2] === 0x71 && length === 8) {
+        // Payload = left(x,y,direction,event), right(x,y,direction,event).
+        // x ja y on signed 8-bit väärtused vahemikus -100…100.
+        const readAxis = index => {
+          const raw = body[4 + index];
+          const signed = raw > 0x7f ? raw - 0x100 : raw;
+          return Math.max(-1, Math.min(1, signed / 100));
+        };
+        this.coDroneAxes = [readAxis(0), readAxis(1), readAxis(4), readAxis(5)];
+        this.coDroneLastPacket = Date.now();
+        this.coDronePacketCount++;
+        if (this.settingsOpen && this.controllerSource === 'codrone' && !this.controllerCalibration && !(this.controllerCalibrationNotice && this.controllerCalibrationNotice.until > Date.now())) {
+          this.ui.controllerState.textContent = this.getLabels().codroneConnected;
+          this.ui.controllerState.classList.add('connected');
+          this.ui.controllerCounts.textContent = `${this.getLabels().codroneAxes}: 4`;
+        }
+      }
+      offset += frameLength;
+    }
+    this.coDroneBuffer = joined.slice(offset);
+    if (this.coDroneBuffer.length > 2048) this.coDroneBuffer = this.coDroneBuffer.slice(-16);
+  }
+
+  startControllerCalibration() {
+    const axes = this.readRawControllerAxes();
+    if (!axes || axes.length < 4) return;
+    const channels = this.activeChannels();
+    this.controllerCalibration = {
+      source: this.controllerSource, phase: 'center', step: 0, samples: [], center: [], usedAxes: [],
+      phaseStarted: Date.now(), original: JSON.parse(JSON.stringify(channels)),
+    };
+    this.controllerCalibrationNotice = null;
+    this.ui.controllerCalibrate.disabled = true;
+    this.ui.controllerState.textContent = this.getLabels().controllerCenter;
+    this.buildControlRows();
+    this.refreshLiveInput();
+  }
+
+  advanceControllerCalibration(axes) {
+    const calibration = this.controllerCalibration;
+    if (!calibration || calibration.source !== this.controllerSource) return;
+    const labels = this.getLabels();
+    const channels = ['throttle', 'roll', 'pitch', 'yaw'];
+    const prompts = [labels.controllerMoveThrottle, labels.controllerMoveRoll, labels.controllerMovePitch, labels.controllerMoveYaw];
+    const sourceChannels = calibration.source === 'codrone' ? this.controls.coDroneChannels : this.controls.channels;
+    if (calibration.phase === 'center') {
+      calibration.samples.push(axes.slice());
+      if (calibration.samples.length < 8) return;
+      calibration.center = axes.map((_, axis) => calibration.samples.reduce((sum, sample) => sum + (sample[axis] || 0), 0) / calibration.samples.length);
+      calibration.phase = 'move';
+      calibration.phaseStarted = Date.now();
+      this.ui.controllerState.textContent = prompts[calibration.step];
+      return;
+    }
+    if (Date.now() - calibration.phaseStarted > 12000) {
+      this.failControllerCalibration();
+      return;
+    }
+    if (calibration.phase === 'move') {
+      const deltas = axes.map((value, axis) => value - (calibration.center[axis] || 0));
+      let axis = -1, magnitude = 0;
+      for (let i = 0; i < deltas.length; i++) {
+        if (calibration.usedAxes.includes(i)) continue;
+        if (Math.abs(deltas[i]) > magnitude) { axis = i; magnitude = Math.abs(deltas[i]); }
+      }
+      if (axis < 0 || magnitude < 0.35) return;
+      const channel = channels[calibration.step];
+      sourceChannels[channel] = { axis, invert: deltas[axis] < 0 };
+      calibration.usedAxes.push(axis);
+      calibration.releaseAxis = axis;
+      calibration.phase = 'release';
+      calibration.phaseStarted = Date.now();
+      this.saveControlSettings();
+      this.buildControlRows();
+      this.ui.controllerState.textContent = labels.controllerRelease;
+      return;
+    }
+    if (calibration.phase === 'release' && Math.abs((axes[calibration.releaseAxis] || 0) - (calibration.center[calibration.releaseAxis] || 0)) < 0.18) {
+      calibration.step++;
+      if (calibration.step >= channels.length) {
+        this.controllerCalibration = null;
+        if (calibration.source === 'codrone') this.controls.coDroneCustomized = true;
+        this.ui.controllerState.textContent = labels.controllerCalibrationDone;
+        this.ui.controllerState.classList.add('connected');
+        this.controllerCalibrationNotice = { text: labels.controllerCalibrationDone, until: Date.now() + 5000 };
+        this.saveControlSettings();
+        this.buildControlRows();
+        this.updateCalibrationAvailability();
+      } else {
+        calibration.phase = 'move';
+        calibration.phaseStarted = Date.now();
+        this.ui.controllerState.textContent = prompts[calibration.step];
+      }
+    }
+  }
+
+  failControllerCalibration() {
+    const calibration = this.controllerCalibration;
+    if (!calibration) return;
+    if (calibration.source === 'codrone') this.controls.coDroneChannels = calibration.original;
+    else this.controls.channels = calibration.original;
+    this.controllerCalibration = null;
+    this.ui.controllerState.textContent = this.getLabels().controllerCalibrationFailed;
+    this.controllerCalibrationNotice = { text: this.getLabels().controllerCalibrationFailed, until: Date.now() + 5000 };
+    this.saveControlSettings();
+    this.buildControlRows();
+    this.updateCalibrationAvailability();
+  }
+
+  async disconnectCoDrone(finalMessage = '') {
+    this.cancelControllerCalibration();
+    const port = this.coDronePort, reader = this.coDroneReader, writer = this.coDroneWriter;
+    this.coDronePort = null; this.coDroneReader = null; this.coDroneWriter = null;
+    window.clearInterval(this.coDronePingTimer); this.coDronePingTimer = 0;
+    this.coDroneAxes = [0, 0, 0, 0]; this.coDroneBuffer = new Uint8Array(0);
+    this.coDronePacketCount = 0; this.coDroneLastPacket = 0;
+    this.controllerCalibration = null;
+    this.controllerCalibrationNotice = null;
+    if (reader) {
+      try { await reader.cancel(); } catch (error) { /* port võis lahti ühendada */ }
+      try { reader.releaseLock(); } catch (error) { /* lugemislukk vabastati juba */ }
+    }
+    if (writer) { try { writer.releaseLock(); } catch (error) { /* kirjutuslukk vabastati juba */ } }
+    if (port) { try { await port.close(); } catch (error) { /* port sulgus juba */ } }
+    this.ui.coDroneConnect.disabled = false;
+    this.ui.coDroneConnect.textContent = this.getLabels().codroneConnect;
+    this.updateCalibrationAvailability();
+    this.controllerSource = 'gamepad';
+    this.scanGamepads(true);
+    if (finalMessage) {
+      this.ui.controllerState.textContent = finalMessage;
+      this.ui.controllerState.classList.remove('connected');
+    }
   }
 
   scanGamepads(force) {
@@ -415,33 +1055,29 @@ class FlightSimulator {
 
   renderGamepads(force, unsupported) {
     const labels = this.getLabels();
-    const signature = `${unsupported ? 'unsupported' : 'supported'}|${this.gamepads.map(p => `${p.index}:${p.id}:${p.axes.length}:${p.buttons.length}`).join('|')}|${this.gamepadIndex}`;
+    const signature = `${unsupported ? 'unsupported' : 'supported'}|${this.gamepads.map(p => `${p.index}:${p.id}:${p.axes.length}:${p.buttons.length}`).join('|')}|${this.gamepadIndex}|${this.controllerSource}|${Boolean(this.coDronePort)}`;
     if (!force && signature === this.gamepadSignature) return;
     this.gamepadSignature = signature;
     const select = this.ui.controllerSelect;
     select.replaceChildren();
-    if (unsupported) {
+    select.disabled = false;
+    if (!this.gamepads.length && !this.coDronePort) {
       const option = document.createElement('option');
-      option.textContent = labels.controllerUnsupported;
+      option.value = '';
+      option.textContent = unsupported ? labels.controllerUnsupported : labels.controllerNone;
       select.append(option);
-      select.disabled = true;
-      this.ui.controllerState.textContent = labels.controllerUnsupported;
+      select.disabled = Boolean(unsupported);
+      this.ui.controllerState.textContent = unsupported ? labels.controllerUnsupported : labels.controllerNone;
       this.ui.controllerState.classList.remove('connected');
       this.ui.controllerCounts.textContent = '';
       this.buildControlRows();
       return;
     }
-    select.disabled = false;
-    if (!this.gamepads.length) {
+    if (this.coDronePort) {
       const option = document.createElement('option');
-      option.value = '';
-      option.textContent = labels.controllerNone;
+      option.value = 'codrone';
+      option.textContent = labels.codroneName;
       select.append(option);
-      this.ui.controllerState.textContent = labels.controllerNone;
-      this.ui.controllerState.classList.remove('connected');
-      this.ui.controllerCounts.textContent = '';
-      this.buildControlRows();
-      return;
     }
     for (const pad of this.gamepads) {
       const option = document.createElement('option');
@@ -449,11 +1085,21 @@ class FlightSimulator {
       option.textContent = pad.id || labels.controllerDevice;
       select.append(option);
     }
-    select.value = String(this.gamepadIndex);
+    select.value = this.controllerSource === 'codrone' && this.coDronePort ? 'codrone' : String(this.gamepadIndex ?? '');
+    if (this.controllerSource === 'codrone' && this.coDronePort) {
+      const gotData = this.coDronePacketCount > 0;
+      this.ui.controllerState.textContent = gotData ? labels.codroneConnected : labels.codroneWaiting;
+      this.ui.controllerCounts.textContent = `${labels.codroneAxes}: 4`;
+      this.ui.controllerState.classList.add('connected');
+      this.buildControlRows();
+      return;
+    }
     const selected = this.gamepads.find(p => p.index === this.gamepadIndex);
-    this.ui.controllerState.textContent = labels.controllerConnected;
-    this.ui.controllerState.classList.add('connected');
-    this.ui.controllerCounts.textContent = `${labels.controllerSelectedAxes}: ${selected.axes.length} · ${labels.controllerSelectedButtons}: ${selected.buttons.length}`;
+    if (selected) {
+      this.ui.controllerState.textContent = labels.controllerConnected;
+      this.ui.controllerState.classList.add('connected');
+      this.ui.controllerCounts.textContent = `${labels.controllerSelectedAxes}: ${selected.axes.length} · ${labels.controllerSelectedButtons}: ${selected.buttons.length}`;
+    }
     this.buildControlRows();
   }
 
@@ -463,6 +1109,7 @@ class FlightSimulator {
     const alreadyActive = this.active;
     this.scene = scene;
     this.sceneBuilt = false;
+    this.resetPathTrail();
     this.active = true;
     this.paused = false;
     this.keys.clear();
@@ -494,6 +1141,7 @@ class FlightSimulator {
     this.ui.settings.hidden = true;
     this.loopToken++;
     this.keys.clear();
+    if (this.coDronePort) void this.disconnectCoDrone();
     this.ui.root.hidden = true;
     this.ui.root.setAttribute('aria-hidden', 'true');
     this.onClose();
@@ -536,11 +1184,12 @@ class FlightSimulator {
   update(dt) {
     const k = this.keys;
     const controller = this.controls.mode === 'controller' ? this.readControllerInput() : null;
-    const forward = controller ? controller.pitch : Number(k.has('w') || k.has('arrowup')) - Number(k.has('s') || k.has('arrowdown'));
-    const side = controller ? controller.roll : Number(k.has('d')) - Number(k.has('a'));
-    const vertical = controller ? controller.throttle : Number(k.has('r')) - Number(k.has('f'));
-    const turn = controller ? controller.yaw : Number(k.has('e') || k.has('arrowright')) - Number(k.has('q') || k.has('arrowleft'));
-    const boost = !controller && k.has('shift') ? 1.8 : 1;
+    const down = action => this.controls.keyboard[action].some(code => k.has(code));
+    const forward = controller ? controller.pitch : Number(down('forward')) - Number(down('backward'));
+    const side = controller ? controller.roll : Number(down('right')) - Number(down('left'));
+    const vertical = controller ? controller.throttle : Number(down('ascend')) - Number(down('descend'));
+    const turn = controller ? controller.yaw : Number(down('turnRight')) - Number(down('turnLeft'));
+    const boost = !controller && down('boost') ? 1.8 : 1;
     if (controller && !this.gamepadAvailable) this.vel = [0, 0, 0];
     const accel = 4.2, drag = Math.exp(-1.5 * dt);
     this.yaw += turn * 1.65 * dt;
@@ -557,6 +1206,7 @@ class FlightSimulator {
     if (this.pos[0] < 0.12 || this.pos[0] > h.w - 0.12) { this.pos[0] = Math.max(0.12, Math.min(h.w - 0.12, this.pos[0])); this.vel[0] = 0; }
     if (this.pos[1] < 0.12 || this.pos[1] > h.l - 0.12) { this.pos[1] = Math.max(0.12, Math.min(h.l - 0.12, this.pos[1])); this.vel[1] = 0; }
     if (this.pos[2] < 0.12 || this.pos[2] > h.h - 0.1) { this.pos[2] = Math.max(0.12, Math.min(h.h - 0.1, this.pos[2])); this.vel[2] = 0; }
+    this.updatePathTrail(dt);
     const moved = Math.hypot(this.pos[0] - prev[0], this.pos[1] - prev[1], this.pos[2] - prev[2]);
     this.distance += moved;
     if (this.pos[2] > 0.3 && !this.finished) this.started = true;
@@ -654,8 +1304,14 @@ class FlightSimulator {
       if (p.k === 'p') pushPoly(p.pts, p.f || 'rgba(148,163,184,.45)', p.s || null);
       else items.push({ type: 'line', pts: [p.a, p.b], color: p.c, width: p.w, depth: (p.a[1] + p.b[1]) / 2 });
     }
-    // Raja joon ja punktimärgid aitavad harjutuses asukohta hinnata.
-    for (let i = 1; i < this.scene.path.length; i++) items.push({ type: 'line', pts: [this.scene.path[i - 1], this.scene.path[i]], color: 'rgba(124,58,237,.65)', width: 0.025, depth: (this.scene.path[i - 1][1] + this.scene.path[i][1]) / 2 });
+    // Raja ees olev joon helendab; drooni taha jääv osa hääbub järk-järgult.
+    const routeRgb = this.themeColor('--sim-route-rgb', '124,58,237');
+    for (let i = 1; i < this.scene.path.length; i++) {
+      const start = this.pathDistances[i - 1], end = this.pathDistances[i], alpha = this.routeAlpha((start + end) / 2);
+      if (alpha < 0.012) continue;
+      const a = this.scene.path[i - 1], b = this.scene.path[i];
+      items.push({ type: 'line', pts: [a, b], color: `rgba(${routeRgb},${alpha})`, width: 0.8, glow: true, depth: (a[1] + b[1]) / 2 });
+    }
     for (const item of items) {
       const cam = item.pts.map(p => this.cameraPoint(p));
       const clipped = item.type === 'poly' ? this.clipNear(cam) : this.clipLine(cam);
@@ -668,7 +1324,11 @@ class FlightSimulator {
       if (!item.screen) continue;
       c.beginPath(); item.screen.forEach((p, i) => i ? c.lineTo(p[0], p[1]) : c.moveTo(p[0], p[1]));
       if (item.type === 'poly') { c.closePath(); c.fillStyle = item.fill; c.fill(); if (item.stroke) { c.strokeStyle = item.stroke; c.lineWidth = 1.2; c.stroke(); } }
-      else { c.strokeStyle = item.color; c.lineWidth = Math.max(1, item.width * 5); c.lineCap = 'round'; c.stroke(); }
+      else {
+        if (item.glow) { c.shadowColor = item.color; c.shadowBlur = 5; }
+        c.strokeStyle = item.color; c.lineWidth = item.glow ? 1.6 : Math.max(1, item.width * 5); c.lineCap = 'round'; c.lineJoin = 'round'; c.stroke();
+        if (item.glow) c.shadowBlur = 0;
+      }
     }
   }
 

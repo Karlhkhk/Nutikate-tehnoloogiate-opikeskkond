@@ -45,11 +45,15 @@
     root: $('#simOverlay'), pause: $('#simPause'), status: $('#simStatus'), time: $('#simTime'), speed: $('#simSpeed'),
     alt: $('#simAltitude'), distance: $('#simDistance'), heading: $('#simHeading'), points: $('#simPoints'), next: $('#simNext'),
     settingsOpen: $('#simSettingsOpen'), settings: $('#simSettings'), settingsClose: $('#simSettingsClose'),
-    menu: $('#simMenu'), menuSummary: $('#simMenuSummary'),
+    menu: $('#simMenu'), menuSummary: $('#simMenuSummary'), keyboardBindings: $('#simKeyboardBindings'),
+    keyboardBindingStatus: $('#simKeyboardBindingStatus'), keyboardReset: $('#simKeyboardReset'),
     settingsClosed: () => { simUi.menu.open = true; simUi.menuSummary.focus(); },
     controllerState: $('#simControllerState'), controllerSelect: $('#simControllerSelect'), controllerRescan: $('#simControllerRescan'),
+    coDroneConnect: $('#simCoDroneConnect'),
+    controllerCalibrate: $('#simControllerCalibrate'),
     controllerCounts: $('#simControllerCounts'), radioSettings: $('#simRadioSettings'), keyboardHelp: $('#simKeyboardHelp'),
-    liveRows: $('#simLiveRows'), deadzone: $('#simDeadzone'), deadzoneValue: $('#simDeadzoneValue'), axisSettings: $('#simAxisSettings'),
+    liveRows: $('#simLiveRows'), stickVisual: $('#simStickVisual'), stickLeft: $('#simStickLeft'), stickRight: $('#simStickRight'), stickDevice: $('#simStickDevice'),
+    deadzone: $('#simDeadzone'), deadzoneValue: $('#simDeadzoneValue'), axisSettings: $('#simAxisSettings'),
     controlHint: $('#simControlHint'),
   };
   const simulator = new FlightSimulator($('#simCanvas'), $('#simMap'), simUi, simulationScene, simulationLabels, () => {});
@@ -62,6 +66,23 @@
       controllerUnsupported: tr('sim.controller.unsupported'), controllerDevice: tr('sim.controller.deviceOption'),
       controllerAxes: tr('sim.controller.axes'), controllerButtons: tr('sim.controller.buttons'),
       controllerSelectedAxes: tr('sim.controller.selectedAxes'), controllerSelectedButtons: tr('sim.controller.selectedButtons'),
+      codroneName: tr('sim.codrone.name'), codroneConnect: tr('sim.codrone.connect'), codroneDisconnect: tr('sim.codrone.disconnect'),
+      codroneUnsupported: tr('sim.codrone.unsupported'), codroneConnected: tr('sim.codrone.connected'), codroneWaiting: tr('sim.codrone.waiting'),
+      codroneNoData: tr('sim.codrone.noData'), codroneAxes: tr('sim.codrone.axes'), codroneError: tr('sim.codrone.error'),
+      controllerCalibrate: tr('sim.controller.calibrate'), controllerCenter: tr('sim.controller.calibrateCenter'), controllerRelease: tr('sim.controller.calibrateRelease'),
+      controllerMoveThrottle: tr('sim.controller.calibrateThrottle'), controllerMoveRoll: tr('sim.controller.calibrateRoll'),
+      controllerMovePitch: tr('sim.controller.calibratePitch'), controllerMoveYaw: tr('sim.controller.calibrateYaw'),
+      controllerCalibrationDone: tr('sim.controller.calibrationDone'), controllerCalibrationFailed: tr('sim.controller.calibrationFailed'),
+      keyboardForward: tr('sim.keyboard.forward'), keyboardBackward: tr('sim.keyboard.backward'),
+      keyboardLeft: tr('sim.keyboard.left'), keyboardRight: tr('sim.keyboard.right'),
+      keyboardYawLeft: tr('sim.keyboard.yawLeft'), keyboardYawRight: tr('sim.keyboard.yawRight'),
+      keyboardAscend: tr('sim.keyboard.ascend'), keyboardDescend: tr('sim.keyboard.descend'), keyboardBoost: tr('sim.keyboard.boost'),
+      keyboardChange: tr('sim.keyboard.change'), keyboardPressKey: tr('sim.keyboard.pressKey'),
+      keyboardKeyInUse: tr('sim.keyboard.keyInUse'), keyboardKeyUnavailable: tr('sim.keyboard.keyUnavailable'), keyboardCaptureCancelled: tr('sim.keyboard.captureCancelled'),
+      keyboardResetDone: tr('sim.keyboard.resetDone'), keyboardHelp: tr('sim.keyboard.help'),
+      keyboardKeyShift: tr('sim.keyboard.keyShift'), keyboardKeyArrowUp: tr('sim.keyboard.keyArrowUp'),
+      keyboardKeyArrowDown: tr('sim.keyboard.keyArrowDown'), keyboardKeyArrowLeft: tr('sim.keyboard.keyArrowLeft'),
+      keyboardKeyArrowRight: tr('sim.keyboard.keyArrowRight'), keyboardKeySpace: tr('sim.keyboard.keySpace'),
       channelThrottle: tr('sim.channel.throttle'), channelRoll: tr('sim.channel.roll'), channelPitch: tr('sim.channel.pitch'), channelYaw: tr('sim.channel.yaw'),
       settingsControllerHint: tr('sim.settings.controllerHint'), settingsNoAxes: tr('sim.settings.noAxes'),
       controlsHint: tr('sim.controls'), invertLabel: tr('sim.controller.invert'),
@@ -964,6 +985,7 @@
 
   // ---------- klaviatuur ----------
   document.addEventListener('keydown', e => {
+    if (e.target.closest && e.target.closest('#simOverlay')) return;
     if (e.target.closest && e.target.closest('input, select, textarea')) return;
     const k = e.key, ctrl = e.ctrlKey || e.metaKey;
     if (k === ' ') { spaceDown = true; e.preventDefault(); return; }
@@ -1522,6 +1544,8 @@
   }));
   $('#simControllerRescan').addEventListener('click', () => simulator.scanGamepads(true));
   $('#simControllerSelect').addEventListener('change', e => simulator.selectGamepad(e.target.value));
+  $('#simCoDroneConnect').addEventListener('click', () => simulator.toggleCoDrone());
+  $('#simControllerCalibrate').addEventListener('click', () => simulator.startControllerCalibration());
   document.querySelectorAll('input[name="simControlMode"]').forEach(input => input.addEventListener('change', e => simulator.setControlMode(e.target.value)));
   $('#simDeadzone').addEventListener('input', e => simulator.setDeadzone(Number(e.target.value) / 100));
   $('#simRestart').addEventListener('click', () => simulator.start());
