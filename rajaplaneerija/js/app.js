@@ -105,7 +105,7 @@
       if (end) route.push({ kind: 'pad', position: end.slice(), opening: null, direction: [0, 0, 0], label: tr('act.land') });
     }
     return {
-      hall: { ...state.hall }, elements: state.elements.map(worldPrims),
+      hall: { ...state.hall }, drone: state.drone, elements: state.elements.map(worldPrims),
       path: flight.pts.map(q => q.p), route, start: flight.pts[0]?.p.slice() || [state.hall.w / 2, state.hall.l / 2, 0.15],
     };
   }
@@ -153,11 +153,21 @@
     if (current && state) current.textContent = state.name || tr('track.untitled');
   }
 
+  function updateSimDroneCurrent() {
+    if (!state) return;
+    const drone = DRONES[state.drone] || DRONES.codrone;
+    const current = $('#simDroneCurrent');
+    const select = $('#simDroneSelect');
+    if (current) current.textContent = drone.name;
+    if (select) select.value = state.drone;
+  }
+
   function afterLoad() {
     if (ui.sel && !byId(ui.sel)) ui.sel = null;
     if (ui.wp != null && ui.wp >= state.path.length) ui.wp = null;
     $('#trackName').value = state.name;
     updateSimRouteCurrent();
+    updateSimDroneCurrent();
     anim.s = Math.min(anim.s, 0);
     invalidate();
     renderPanel();
@@ -1526,7 +1536,7 @@
   });
   $('#fileIn').addEventListener('change', e => { if (e.target.files[0]) openFile(e.target.files[0]); e.target.value = ''; });
   $('#simPause').addEventListener('click', () => simulator.pause());
-  $('#simSettingsOpen').addEventListener('click', () => { updateSimRouteCurrent(); simulator.openSettings(); });
+  $('#simSettingsOpen').addEventListener('click', () => { updateSimRouteCurrent(); updateSimDroneCurrent(); simulator.openSettings(); });
   document.querySelector('.sim-menu').addEventListener('click', e => {
     if (e.target.closest('button')) e.currentTarget.open = false;
     else if (e.target === e.currentTarget) e.currentTarget.open = false;
@@ -1577,6 +1587,17 @@
     } else {
       feedback.textContent = tr('sim.settings.routeNoFlight');
     }
+  });
+  $('#simDroneSelect').addEventListener('change', e => {
+    const drone = e.target.value;
+    if (!DRONES[drone] || state.drone === drone) return;
+    checkpoint();
+    state.drone = drone;
+    save();
+    invalidate();
+    renderPanel();
+    updateSimDroneCurrent();
+    if (simulator.active && simulator.scene) simulator.scene.drone = drone;
   });
 
   // ---------- palett ----------

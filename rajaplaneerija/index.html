@@ -130,6 +130,7 @@
         <nav class="sim-settings-nav" aria-label="Seadete kategooriad" data-i18n-aria="sim.settings.categories">
           <button type="button" class="on" data-settings-tab="controls" aria-selected="true" data-i18n="sim.settings.controls">Controls</button>
           <button type="button" data-settings-tab="routes" aria-selected="false" data-i18n="sim.settings.routes">Rajaseaded</button>
+          <button type="button" data-settings-tab="drones" aria-selected="false" data-i18n="sim.settings.drones">Droonid</button>
         </nav>
         <div class="sim-settings-content" data-settings-page="controls">
           <h3 data-i18n="sim.settings.controls">Controls</h3>
@@ -200,6 +201,17 @@
           <select id="simTrackSelect" class="sim-route-select"></select>
           <p class="sim-route-hint" data-i18n="sim.settings.routeHint">Raja valimisel vahetub simulaatori rada kohe ja lend algab valitud raja algusest.</p>
           <p class="sim-route-feedback" id="simRouteFeedback" aria-live="polite"></p>
+        </section>
+        <section class="sim-settings-content" data-settings-page="drones" hidden>
+          <h3 data-i18n="sim.settings.drones">Droonid</h3>
+          <div class="sim-route-current"><span data-i18n="sim.settings.droneCurrent">Valitud droon</span><strong id="simDroneCurrent">—</strong></div>
+          <label class="sim-route-label" for="simDroneSelect" data-i18n="sim.settings.droneSelect">Vali droon</label>
+          <select id="simDroneSelect" class="sim-route-select">
+            <option value="codrone" data-i18n="drone.codrone">CoDrone EDU</option>
+            <option value="neo2" data-i18n="drone.neo2">DJI Neo 2</option>
+          </select>
+          <p class="sim-route-hint" data-i18n="sim.settings.droneHint">Valik salvestatakse rajaga ja on sama rajaplaneerijas ning simulaatoris.</p>
+          <p class="sim-route-hint"><span data-i18n="sim.settings.droneModelCredit">DJI Neo 2 mudel:</span> <a href="https://sketchfab.com/3d-models/dji-neo-2-90f151c2a6f34c3da2020e61654ed15f" target="_blank" rel="noopener noreferrer">Dji Neo 2 by 5Blender · Sketchfab · CC Attribution</a></p>
         </section>
       </div>
     </section>

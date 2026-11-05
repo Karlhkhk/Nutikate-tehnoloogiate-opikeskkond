@@ -309,6 +309,7 @@ button:disabled { opacity: .45; cursor: default; }
 .sim-route-current span { color: var(--muted); font-size: 11px; font-weight: 650; }
 .sim-route-current strong { overflow-wrap: anywhere; color: var(--text); font-size: 15px; }
 .sim-route-hint { max-width: 620px; margin: 10px 0 0; color: var(--muted); font-size: 12px; line-height: 1.5; }
+.sim-route-hint a { color: var(--accent); text-underline-offset: 2px; }
 .sim-route-feedback { min-height: 18px; margin: 7px 0 0; color: var(--sim-feedback); font-size: 12px; }
 .sim-control-mode { display: flex; gap: 12px; margin: 0 0 14px; padding: 0; border: 0; }
 .sim-control-mode legend { margin-bottom: 8px; color: var(--muted); font-size: 12px; font-weight: 700; }
