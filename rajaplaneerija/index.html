@@ -15,7 +15,7 @@
   <meta property="og:image:alt" content="Droonirajaplaneerija: 3D-vaade drooni lennurajast">
   <meta name="twitter:card" content="summary_large_image">
   <link rel="icon" href="../assets/track/ring.svg">
-  <link rel="stylesheet" href="css/style.css?v=texture-fix-2">
+  <link rel="stylesheet" href="css/style.css?v=sim-expansion-2">
 </head>
 <body>
   <header class="topbar">
@@ -39,11 +39,6 @@
     <div class="tb-group">
       <button data-act="undo" class="icon" title="Võta tagasi (Ctrl+Z)" data-i18n-title="btn.undo.t">↶</button>
       <button data-act="redo" class="icon" title="Tee uuesti (Ctrl+Y)" data-i18n-title="btn.redo.t">↷</button>
-    </div>
-
-    <div class="tb-group">
-      <button data-act="rotL" class="icon" title="Pööra vaadet vasakule ( [ )" data-i18n-title="btn.rotL.t">⟲</button>
-      <button data-act="rotR" class="icon" title="Pööra vaadet paremale ( ] )" data-i18n-title="btn.rotR.t">⟳</button>
       <button data-act="fit" title="Mahuta saal ekraanile (F)" data-i18n="btn.fit" data-i18n-title="btn.fit.t">Mahuta</button>
     </div>
 
@@ -77,15 +72,18 @@
 
     <section class="stage">
       <div class="canvas-wrap">
+        <button id="paletteToggle" class="panel-toggle panel-toggle-left" type="button" aria-controls="palette" aria-expanded="true">‹</button>
+        <button id="inspectorToggle" class="panel-toggle panel-toggle-right" type="button" aria-controls="inspectorPanel" aria-expanded="true">›</button>
         <canvas id="scene" tabindex="0" aria-label="Droonirada 3D-vaates" data-i18n-aria="scene.aria"></canvas>
         <div class="hint" id="hint"></div>
+        <div id="sceneContextMenu" class="scene-context-menu" role="menu" hidden></div>
       </div>
       <div class="profile-wrap">
         <canvas id="profile" aria-label="Lennukõrguse profiil" data-i18n-aria="profile.aria"></canvas>
       </div>
     </section>
 
-    <aside class="panel">
+    <aside class="panel" id="inspectorPanel">
       <nav class="tabs" id="tabs">
         <button data-tab="props" data-i18n="tab.props">Omadused</button>
         <button data-tab="path" data-i18n="tab.path">Lennurada</button>
@@ -130,6 +128,7 @@
           <button type="button" class="on" data-settings-tab="controls" aria-selected="true" data-i18n="sim.settings.controls">Controls</button>
           <button type="button" data-settings-tab="routes" aria-selected="false" data-i18n="sim.settings.routes">Rajaseaded</button>
           <button type="button" data-settings-tab="drones" aria-selected="false" data-i18n="sim.settings.drones">Droonid</button>
+          <button type="button" data-settings-tab="program" aria-selected="false" data-i18n="sim.program.title">Kood</button>
         </nav>
         <div class="sim-settings-content" data-settings-page="controls">
           <h3 data-i18n="sim.settings.controls">Controls</h3>
@@ -139,6 +138,16 @@
               <option value="light" data-i18n="theme.light">Hele</option>
               <option value="dark" data-i18n="theme.dark">Tume</option>
             </select>
+          </label>
+          <label class="sim-theme-setting" for="simCameraSelect"><span data-i18n="sim.camera.label">Kaameravaade</span>
+            <select id="simCameraSelect"><option value="fpv" data-i18n="sim.camera.fpv">FPV</option><option value="chase" data-i18n="sim.camera.chase">Jälgija (lukus droonile)</option><option value="observer" data-i18n="sim.camera.observer">Vaatleja</option></select>
+          </label>
+          <p class="sim-route-hint" data-i18n="sim.camera.hint">Jälgijavaade püsib drooni taga; ringi liikumiseks vali Vaatleja.</p>
+          <label class="sim-theme-setting" for="simQualitySelect"><span data-i18n="sim.quality.label">Graafika</span>
+            <select id="simQualitySelect"><option value="ultra-low" data-i18n="sim.quality.ultraLow">Ülimadal</option><option value="low" data-i18n="sim.quality.low">Madal</option><option value="medium" data-i18n="sim.quality.medium">Keskmine</option><option value="high" data-i18n="sim.quality.high">Kõrge</option><option value="ultra" data-i18n="sim.quality.ultra">Ülikõrge</option></select>
+          </label>
+          <label class="sim-theme-setting" for="simMapSelect"><span data-i18n="sim.map.label">Keskkond</span>
+            <select id="simMapSelect"><option value="hangar" data-i18n="sim.map.hangar">Angaar</option><option value="outdoor" data-i18n="sim.map.outdoor">Välirada</option><option value="night" data-i18n="sim.map.night">Öine rada</option></select>
           </label>
           <fieldset class="sim-control-mode">
             <legend data-i18n="sim.settings.controlMethod">Juhtimisviis</legend>
@@ -208,6 +217,7 @@
           <select id="simDroneSelect" class="sim-route-select">
             <option value="codrone" data-i18n="drone.codrone">CoDrone EDU</option>
             <option value="neo2" data-i18n="drone.neo2">DJI Neo 2</option>
+            <option value="tinywhoop" data-i18n="drone.tinywhoop">Tinywhoop</option>
           </select>
           <p class="sim-route-hint" data-i18n="sim.settings.droneHint">Valik salvestatakse rajaga ja on sama rajaplaneerijas ning simulaatoris.</p>
           <div class="drone-model-view" id="droneModelView">
@@ -223,6 +233,23 @@
           <div class="drone-model-missing" id="droneModelMissing" hidden>
             <p class="sim-route-hint" data-i18n="drone.preview.missing">Sellele droonile pole kohalikku 3D-mudelit lisatud.</p>
           </div>
+        </section>
+        <section class="sim-settings-content" data-settings-page="program" hidden>
+          <h3 data-i18n="sim.program.title">CoDrone’i programm</h3>
+          <p class="sim-route-hint" data-i18n="sim.program.hint">Koosta käsud, käivita need simulaatoris ja ekspordi sama programm Pythonina CoDrone EDU jaoks.</p>
+          <p class="sim-route-hint" data-i18n="sim.program.editorHint">Kirjuta siia Pythonit. Simulaator tunneb praegu ära CoDrone’i õhkutõusu, move_distance’i, pöörde, time.sleep’i ja maandumise käsud.</p>
+          <div class="sim-program-toolbar">
+            <select id="simProgramCommand"><option value="takeoff" data-i18n="sim.program.takeoff">Õhkutõus</option><option value="move" data-i18n="sim.program.move">Liigu edasi</option><option value="turn" data-i18n="sim.program.turn">Pööra</option><option value="wait" data-i18n="sim.program.wait">Oota</option><option value="land" data-i18n="sim.program.land">Maandu</option></select>
+            <button id="simProgramAdd" type="button" data-i18n="sim.program.add">Lisa käsk</button>
+            <button id="simProgramRun" type="button" data-i18n="sim.program.run">Käivita simulaatoris</button>
+            <button id="simProgramStop" type="button" data-i18n="sim.program.stop">Peata</button>
+            <button id="simProgramExport" type="button" data-i18n="sim.program.export">Loo Python</button>
+            <button id="simProgramDownload" type="button" data-i18n="sim.program.download">Laadi .py alla</button>
+          </div>
+          <ol id="simProgramList" class="sim-program-list"></ol>
+          <label class="sim-program-editor-label" for="simProgramPython" data-i18n="sim.program.editorLabel">Pythoni programm</label>
+          <textarea id="simProgramPython" class="sim-program-python" spellcheck="false" aria-label="CoDrone Python programm" data-i18n-aria="sim.program.editorLabel" placeholder="from codrone_edu.drone import *&#10;import time&#10;&#10;drone = Drone()&#10;drone.pair()&#10;drone.takeoff()&#10;drone.move_distance(1, 0, 0, 0.5)&#10;drone.land()&#10;drone.close()"></textarea>
+          <p id="simProgramStatus" class="sim-route-feedback" aria-live="polite"></p>
         </section>
       </div>
     </section>
@@ -241,10 +268,10 @@
 
   <input type="file" id="fileIn" accept=".json,application/json" hidden>
 
-  <script src="js/i18n.js?v=drone-preview-1"></script>
+  <script src="js/i18n.js?v=sim-expansion-2"></script>
   <script src="js/elements.js?v=dev"></script>
-  <script src="js/simulator.js?v=keyboard-config-1"></script>
+  <script src="js/simulator.js?v=sim-expansion-2"></script>
   <script src="js/drone-preview.js?v=orbit-ease-1"></script>
-  <script src="js/app.js?v=texture-fix-2"></script>
+  <script src="js/app.js?v=sim-expansion-2"></script>
 </body>
 </html>

@@ -23,6 +23,7 @@
   const DRONES = {
     codrone: { name: 'CoDrone EDU', speed: 0.5, minGap: 0.4, takeoffZ: 0.8, code: true },
     neo2: { name: 'DJI Neo 2', speed: 2.0, minGap: 0.6, takeoffZ: 1.2, code: false },
+    tinywhoop: { name: 'Tinywhoop', speed: 1.4, minGap: 0.35, takeoffZ: 0.6, code: false },
   };
   const STORE = 'droonirajaplaneerija.v1';
   const LIB = 'droonirajaplaneerija.rajad';
@@ -32,6 +33,31 @@
   const canvas = $('#scene'), ctx = canvas.getContext('2d');
   const prof = $('#profile'), pctx = prof.getContext('2d');
   const panelBody = $('#panelBody');
+  const layoutRoot = $('.layout');
+  const panelToggleState = { palette: true, inspector: true };
+  try { Object.assign(panelToggleState, JSON.parse(localStorage.getItem('droonirajaplaneerija.paneelid') || '{}')); } catch (e) { /* kasuta vaikeseadeid */ }
+  function syncPanelToggles() {
+    layoutRoot.classList.toggle('palette-collapsed', !panelToggleState.palette);
+    layoutRoot.classList.toggle('inspector-collapsed', !panelToggleState.inspector);
+    const left = $('#paletteToggle'), right = $('#inspectorToggle');
+    left.textContent = panelToggleState.palette ? '‹' : '›';
+    left.setAttribute('aria-expanded', String(panelToggleState.palette));
+    left.setAttribute('aria-label', tr(panelToggleState.palette ? 'panel.palette.close' : 'panel.palette.open'));
+    left.title = tr(panelToggleState.palette ? 'panel.palette.close' : 'panel.palette.open');
+    right.textContent = panelToggleState.inspector ? '›' : '‹';
+    right.setAttribute('aria-expanded', String(panelToggleState.inspector));
+    right.setAttribute('aria-label', tr(panelToggleState.inspector ? 'panel.inspector.close' : 'panel.inspector.open'));
+    right.title = tr(panelToggleState.inspector ? 'panel.inspector.close' : 'panel.inspector.open');
+  }
+  panelToggleState.palette = panelToggleState.palette !== false;
+  panelToggleState.inspector = panelToggleState.inspector !== false;
+  syncPanelToggles();
+  function toggleSidePanel(key) {
+    panelToggleState[key] = !panelToggleState[key];
+    try { localStorage.setItem('droonirajaplaneerija.paneelid', JSON.stringify(panelToggleState)); } catch (e) { /* ainult selle laadimise jaoks */ }
+    syncPanelToggles();
+    resize();
+  }
 
   let state = null;
   const ui = { mode: 'build', sel: null, wp: null, tab: 'props' };
@@ -55,8 +81,83 @@
     liveRows: $('#simLiveRows'), stickVisual: $('#simStickVisual'), stickLeft: $('#simStickLeft'), stickRight: $('#simStickRight'), stickDevice: $('#simStickDevice'),
     deadzone: $('#simDeadzone'), deadzoneValue: $('#simDeadzoneValue'), axisSettings: $('#simAxisSettings'),
     controlHint: $('#simControlHint'),
+    programStatus: $('#simProgramStatus'),
   };
   const simulator = new FlightSimulator($('#simCanvas'), $('#simMap'), simUi, simulationScene, simulationLabels, () => {});
+  const simProgram = [];
+  const simProgramEditor = $('#simProgramPython');
+  let simProgramEditorTouched = false;
+  try {
+    const saved = JSON.parse(localStorage.getItem('droonirajaplaneerija.simProgram') || '[]');
+    if (Array.isArray(saved)) simProgram.push(...saved.filter(c => c && ['takeoff','move','turn','wait','land'].includes(c.type)).map(c => ({ type: c.type, value: Number(c.value) || 1 })));
+  } catch (_) { /* kasuta tühja programmi */ }
+  function saveSimProgram() { try { localStorage.setItem('droonirajaplaneerija.simProgram', JSON.stringify(simProgram)); } catch (_) { /* programm jääb selleks seansiks alles */ } }
+  try {
+    const source = localStorage.getItem('droonirajaplaneerija.simProgramSource');
+    if (source) { simProgramEditor.value = source; simProgramEditorTouched = true; }
+  } catch (_) { /* lähtekood jääb selleks seansiks alles */ }
+  function syncSimProgramEditor() {
+    if (simProgramEditorTouched) return;
+    simProgramEditor.value = simProgramPython();
+  }
+  const simProgramDefaults = { takeoff: 0, move: 1, turn: 90, wait: 1, land: 0 };
+  function renderSimProgram() {
+    const list = $('#simProgramList');
+    list.innerHTML = simProgram.map((command, i) => {
+      const title = tr(`sim.program.${command.type}`);
+      const editable = ['move','turn','wait'].includes(command.type);
+      return `<li><span>${i + 1}. ${esc(title)}</span>${editable ? `<label>${esc(tr(command.type === 'wait' ? 'sim.program.seconds' : command.type === 'turn' ? 'sim.program.degrees' : 'sim.program.meters'))}<input type="number" min="0.1" step="0.1" value="${esc(String(command.value))}" data-program-value="${i}"></label>` : ''}<button type="button" data-program-remove="${i}" aria-label="${esc(tr('sim.program.remove'))}">×</button></li>`;
+    }).join('');
+    syncSimProgramEditor();
+  }
+  function simProgramPython() {
+    const commands = simProgram.length ? simProgram : [
+      { type: 'takeoff' }, { type: 'move', value: 1 }, { type: 'turn', value: 90 },
+      { type: 'move', value: 1 }, { type: 'wait', value: 1 }, { type: 'land' },
+    ];
+    const lines = ['# CoDrone EDU programm', '# Muuda käskude järjekorda ja arvväärtusi, et katsetada lendu.', 'from codrone_edu.drone import *', 'import time', '', 'drone = Drone()', 'drone.pair()', ''];
+    let heading = 0;
+    for (const c of commands) {
+      if (c.type === 'takeoff') lines.push('drone.takeoff()', 'time.sleep(1)');
+      else if (c.type === 'move') lines.push(`drone.move_distance(${Number(c.value).toFixed(2)}, 0, 0, 0.8)`);
+      else if (c.type === 'moveXYZ') lines.push(`drone.move_distance(${c.x.toFixed(2)}, ${c.y.toFixed(2)}, ${c.z.toFixed(2)}, ${c.speed.toFixed(2)})`);
+      else if (c.type === 'turn') { heading -= Math.round(Number(c.value)); lines.push(`drone.turn_degree(${heading})`); }
+      else if (c.type === 'wait') lines.push(`time.sleep(${Math.max(.1, Number(c.value) || 1).toFixed(1)})`);
+      else if (c.type === 'land') lines.push('drone.land()');
+    }
+    lines.push('', 'drone.close()'); return lines.join('\n');
+  }
+  function parseStudentPython(source) {
+    const commands = []; let absoluteHeading = 0;
+    const supportedSetup = new Set(['from codrone_edu.drone import *', 'from codrone_edu.drone import Drone', 'import time', 'drone = Drone()', 'drone.pair()', 'drone.close()']);
+    const fail = line => { throw new Error(tr('sim.program.unsupportedLine', { line })); };
+    for (const [index, original] of source.split(/\r?\n/).entries()) {
+      const line = original.replace(/#.*$/, '').trim();
+      if (!line || supportedSetup.has(line)) continue;
+      if (/^drone\.takeoff\(\)$/.test(line)) { commands.push({ type: 'takeoff' }); continue; }
+      if (/^drone\.land\(\)$/.test(line)) { commands.push({ type: 'land' }); continue; }
+      let match = line.match(/^time\.sleep\(([^()]*)\)$/);
+      if (match) {
+        const seconds = Number(match[1]); if (!Number.isFinite(seconds) || seconds <= 0) fail(index + 1);
+        commands.push({ type: 'wait', value: seconds }); continue;
+      }
+      match = line.match(/^drone\.turn_degree\(([^()]*)\)$/);
+      if (match) {
+        const args = match[1].split(',').map(part => Number(part.trim())), heading = args[0];
+        if (args.length < 1 || args.length > 3 || args.some(value => !Number.isFinite(value))) fail(index + 1);
+        commands.push({ type: 'turn', value: -(heading - absoluteHeading) }); absoluteHeading = heading; continue;
+      }
+      match = line.match(/^drone\.move_distance\(([^()]*)\)$/);
+      if (match) {
+        const values = match[1].split(',').map(part => Number(part.trim()));
+        if (values.length !== 4 || values.some(value => !Number.isFinite(value)) || values[3] <= 0) fail(index + 1);
+        commands.push({ type: 'moveXYZ', x: values[0], y: values[1], z: values[2], speed: values[3] }); continue;
+      }
+      fail(index + 1);
+    }
+    if (!commands.length) throw new Error(tr('sim.program.empty'));
+    return commands;
+  }
   const dronePreview = new DroneModelPreview($('#droneModelCanvas'), $('#droneModelStatus'), () => ({
     loading: tr('drone.preview.loading'), ready: tr('drone.preview.ready'), failed: tr('drone.preview.failed'), unsupported: tr('drone.preview.unsupported'),
   }));
@@ -64,7 +165,7 @@
   function simulationLabels() {
     return {
       pause: tr('sim.pause'), resume: tr('sim.resume'), paused: tr('sim.paused'), ready: tr('sim.ready'),
-      flying: tr('sim.flying'), complete: tr('sim.complete'),
+      flying: tr('sim.flying'), complete: tr('sim.complete'), programComplete: tr('sim.program.complete'),
       controllerNone: tr('sim.controller.none'), controllerConnected: tr('sim.controller.connected'),
       controllerUnsupported: tr('sim.controller.unsupported'), controllerDevice: tr('sim.controller.deviceOption'),
       controllerAxes: tr('sim.controller.axes'), controllerButtons: tr('sim.controller.buttons'),
@@ -925,17 +1026,63 @@
   }
   function hitBadge(mx, my) { const b = badges.find(b => Math.hypot(b.x - mx, b.y - my) < 11); return b ? b.wp : null; }
 
-  let drag = null, spaceDown = false;
-  canvas.addEventListener('contextmenu', e => e.preventDefault());
+  let drag = null, spaceDown = false, contextTarget = null;
+  const sceneContextMenu = $('#sceneContextMenu');
+  canvas.addEventListener('contextmenu', e => {
+    e.preventDefault();
+    const [mx, my] = localPos(e);
+    const el = hitElement(mx, my);
+    const [x, y] = ground(mx, my);
+    const inside = x >= 0 && y >= 0 && x <= state.hall.w && y <= state.hall.l;
+    if (el) {
+      ui.sel = el.id; ui.wp = null; ui.tab = 'props';
+      contextTarget = { elId: el.id };
+      renderPanel();
+      requestRender();
+      sceneContextMenu.innerHTML = [
+        ['route', tr('ctx.addToPath')], ['rotate', tr('ctx.rotate')], ['duplicate', tr('ctx.duplicate')], ['delete', tr('ctx.delete')],
+      ].map(([action, label]) => `<button type="button" role="menuitem" data-context-action="${action}">${label}</button>`).join('');
+    } else {
+      contextTarget = { x, y, inside };
+      sceneContextMenu.innerHTML = `<button type="button" role="menuitem" data-context-action="waypoint"${inside ? '' : ' disabled'}>${tr('ctx.addWaypoint')}</button><button type="button" role="menuitem" data-context-action="fit">${tr('ctx.fitView')}</button>`;
+    }
+    sceneContextMenu.hidden = false;
+    const left = Math.min(e.clientX, window.innerWidth - sceneContextMenu.offsetWidth - 8);
+    const top = Math.min(e.clientY, window.innerHeight - sceneContextMenu.offsetHeight - 8);
+    sceneContextMenu.style.left = `${Math.max(8, left)}px`;
+    sceneContextMenu.style.top = `${Math.max(8, top)}px`;
+  });
+  sceneContextMenu.addEventListener('click', e => {
+    const action = e.target.closest('[data-context-action]')?.dataset.contextAction;
+    if (!action || !contextTarget) return;
+    const el = contextTarget.elId ? byId(contextTarget.elId) : null;
+    if (el) ui.sel = el.id;
+    sceneContextMenu.hidden = true;
+    switch (action) {
+      case 'route': if (el) addWpForElement(el); break;
+      case 'rotate': if (el) rotateSelected(15); break;
+      case 'duplicate': if (el) duplicateSelected(); break;
+      case 'delete': if (el) deleteSelected(); break;
+      case 'waypoint': if (contextTarget.inside) addFreeWp(contextTarget.x, contextTarget.y); break;
+      case 'fit': fitView(); requestRender(); break;
+    }
+    contextTarget = null;
+  });
+  document.addEventListener('pointerdown', e => {
+    if (!sceneContextMenu.hidden && !sceneContextMenu.contains(e.target)) sceneContextMenu.hidden = true;
+  });
+  document.addEventListener('keydown', e => { if (e.key === 'Escape') sceneContextMenu.hidden = true; });
   canvas.addEventListener('pointerdown', e => {
     canvas.focus();
     const [mx, my] = localPos(e);
     const pan = () => { drag = { kind: 'pan', mx, my, px: view.panX, py: view.panY }; canvas.setPointerCapture(e.pointerId); canvas.classList.add('dragging'); };
-    if (e.button === 2) {
+    if (e.button === 1) {
+      e.preventDefault();
       drag = { kind: 'orbit', mx, my, yaw: view.yaw, pitch: view.pitch };
       canvas.setPointerCapture(e.pointerId); canvas.classList.add('dragging'); return;
     }
-    if (e.button === 1 || spaceDown) return pan();
+    if (e.button === 2) return;
+    if (spaceDown) return pan();
     if (e.button !== 0) return;
     if (ui.mode === 'path') {
       const b = hitBadge(mx, my);
@@ -1276,10 +1423,7 @@
         ${field(tr('p.length'), numIn('hall.l', h.l, 4, 60, 0.5))}
         ${field(tr('p.ceiling'), numIn('hall.h', h.h, 2, 15, 0.1))}
         ${field(tr('p.grid'), selectIn('hall.grid', [[0.25, '25 cm'], [0.5, '50 cm'], [1, '1 m']], h.grid))}
-        <h4>${tr('p.howto')}</h4>
-        <p class="note">${tr('p.howto1')}</p>
-        <p class="note">${tr('p.howto2')}</p>
-        <p class="note">${tr('p.howto3')}</p>`;
+        `;
     }
     const t = T(el), v = V(el), z = elZ(el);
     const os = t.kind === 'gate' ? openings(el) : [];
@@ -1531,6 +1675,8 @@
   });
 
   $('#tabs').addEventListener('click', e => { const b = e.target.closest('[data-tab]'); if (b) { ui.tab = b.dataset.tab; renderPanel(); } });
+  $('#paletteToggle').addEventListener('click', () => toggleSidePanel('palette'));
+  $('#inspectorToggle').addEventListener('click', () => toggleSidePanel('inspector'));
 
   // ---------- ülariba ----------
   document.querySelector('.topbar').addEventListener('click', e => {
@@ -1546,8 +1692,6 @@
       case 'save': saveToLib(); break;
       case 'undo': undo(); break;
       case 'redo': redo(); break;
-      case 'rotL': rotateView(-45); break;
-      case 'rotR': rotateView(45); break;
       case 'fit': fitView(); requestRender(); break;
       case 'play': setPlaying(!anim.playing); break;
       case 'sim': startSimulation(); break;
@@ -1572,7 +1716,44 @@
     });
     document.querySelectorAll('[data-settings-page]').forEach(page => { page.hidden = page.dataset.settingsPage !== selected; });
     if (selected === 'drones') updateDronePreview();
+    if (selected === 'program') renderSimProgram();
   }));
+  $('#simCameraSelect').value = simulator.cameraMode;
+  $('#simQualitySelect').value = simulator.quality;
+  $('#simMapSelect').value = simulator.environment;
+  $('#simCameraSelect').addEventListener('change', e => simulator.setCameraMode(e.target.value));
+  $('#simQualitySelect').addEventListener('change', e => simulator.setQuality(e.target.value));
+  $('#simMapSelect').addEventListener('change', e => simulator.setEnvironment(e.target.value));
+  $('#simProgramAdd').addEventListener('click', () => {
+    const type = $('#simProgramCommand').value;
+    simProgram.push({ type, value: simProgramDefaults[type] }); saveSimProgram(); renderSimProgram();
+  });
+  $('#simProgramList').addEventListener('input', e => {
+    const i = Number(e.target.dataset.programValue); if (Number.isInteger(i) && simProgram[i]) { simProgram[i].value = Math.max(.1, Number(e.target.value) || .1); saveSimProgram(); syncSimProgramEditor(); }
+  });
+  $('#simProgramList').addEventListener('click', e => {
+    const button = e.target.closest('[data-program-remove]'); if (!button) return;
+    simProgram.splice(Number(button.dataset.programRemove), 1); saveSimProgram(); renderSimProgram();
+  });
+  $('#simProgramRun').addEventListener('click', () => {
+    let commands;
+    try { commands = $('#simProgramPython').value.trim() ? parseStudentPython($('#simProgramPython').value) : simProgram; }
+    catch (error) { $('#simProgramStatus').textContent = error.message; return; }
+    if (!commands.length) { $('#simProgramStatus').textContent = tr('sim.program.empty'); return; }
+    if (!simulator.active && !simulator.start()) { $('#simProgramStatus').textContent = tr('sim.program.needRoute'); return; }
+    if (simulator.settingsOpen) simulator.closeSettings();
+    simulator.setProgram(commands); $('#simProgramStatus').textContent = tr('sim.program.running');
+  });
+  $('#simProgramStop').addEventListener('click', () => { simulator.stopProgram(); $('#simProgramStatus').textContent = tr('sim.program.stopped'); });
+  simProgramEditor.addEventListener('input', () => {
+    simProgramEditorTouched = true;
+    try { localStorage.setItem('droonirajaplaneerija.simProgramSource', simProgramEditor.value); } catch (_) { /* lähtekood jääb selleks seansiks alles */ }
+  });
+  $('#simProgramExport').addEventListener('click', () => {
+    simProgramEditorTouched = false; simProgramEditor.value = simProgramPython();
+    try { localStorage.removeItem('droonirajaplaneerija.simProgramSource'); } catch (_) { /* programm jääb selleks seansiks alles */ }
+  });
+  $('#simProgramDownload').addEventListener('click', () => download('codrone-program.py', $('#simProgramPython').value.trim() || simProgramPython(), 'text/x-python'));
   $('#simControllerRescan').addEventListener('click', () => simulator.scanGamepads(true));
   $('#simControllerSelect').addEventListener('change', e => simulator.selectGamepad(e.target.value));
   $('#simCoDroneConnect').addEventListener('click', () => simulator.toggleCoDrone());
@@ -1670,10 +1851,12 @@
     document.querySelectorAll('[data-i18n]').forEach(n => { n.textContent = tr(n.dataset.i18n); });
     document.querySelectorAll('[data-i18n-title]').forEach(n => { n.title = tr(n.dataset.i18nTitle); });
     document.querySelectorAll('[data-i18n-aria]').forEach(n => n.setAttribute('aria-label', tr(n.dataset.i18nAria)));
+    syncPanelToggles();
     document.querySelectorAll('#langSeg button').forEach(b => b.classList.toggle('on', b.dataset.lang === LANG));
     $('#playBtn').textContent = tr(anim.playing ? 'btn.stop' : 'btn.play');
     $('#simPause').textContent = tr(simulator.paused ? 'sim.resume' : 'sim.pause');
     if (!$('#simSettings').hidden && !$('#droneModelView').hidden) updateDronePreview();
+    if (!$('#simSettings').hidden && !document.querySelector('[data-settings-page="program"]').hidden) renderSimProgram();
     simulator.updateControlHint();
     if (simulator.settingsOpen) simulator.refreshSettings();
   }

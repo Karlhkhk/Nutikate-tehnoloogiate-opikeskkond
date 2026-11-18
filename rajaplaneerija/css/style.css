@@ -186,9 +186,13 @@ button:disabled { opacity: .45; cursor: default; }
 .theme-control select { min-width: 76px; }
 
 /* Põhipaigutus */
-.layout { flex: 1; display: grid; grid-template-columns: 196px 1fr 360px; min-height: 0; }
+.layout { flex: 1; display: grid; grid-template-columns: 196px minmax(0, 1fr) 360px; min-height: 0; }
+.layout.palette-collapsed { grid-template-columns: 0 minmax(0, 1fr) 360px; }
+.layout.inspector-collapsed { grid-template-columns: 196px minmax(0, 1fr) 0; }
+.layout.palette-collapsed.inspector-collapsed { grid-template-columns: 0 minmax(0, 1fr) 0; }
+.layout.palette-collapsed .palette, .layout.inspector-collapsed .panel { display: none; }
 
-.palette { background: var(--surface); border-right: 1px solid var(--line); overflow-y: auto; padding: 8px 10px 16px; }
+.palette { grid-column: 1; min-width: 0; background: var(--surface); border-right: 1px solid var(--line); overflow-y: auto; padding: 8px 10px 16px; }
 .palette h3 { font-size: 11px; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); margin: 12px 2px 6px; }
 .pal-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
 .pal-item {
@@ -202,7 +206,7 @@ button:disabled { opacity: .45; cursor: default; }
 .pal-price { font-size: 10.5px; color: var(--muted); font-variant-numeric: tabular-nums; }
 .pal-price:empty { display: none; }
 
-.stage { display: flex; flex-direction: column; min-width: 0; min-height: 0; }
+.stage { grid-column: 2; display: flex; flex-direction: column; min-width: 0; min-height: 0; position: relative; }
 .canvas-wrap { position: relative; flex: 1; min-height: 0; }
 #scene { width: 100%; height: 100%; display: block; cursor: default; outline: none; }
 #scene.path-mode { cursor: crosshair; }
@@ -216,6 +220,15 @@ button:disabled { opacity: .45; cursor: default; }
 .hint.warn { background: #fef3c7; border-color: #f59e0b; color: #92400e; }
 :root[data-theme="dark"] .hint.warn { background: #422006; border-color: #a16207; color: #fde68a; }
 #profile { width: 100%; height: 100%; display: block; cursor: pointer; }
+.panel-toggle { position: absolute; z-index: 5; top: 50%; transform: translateY(-50%); width: 28px; height: 42px; padding: 0; border: 1px solid var(--line-strong); background: color-mix(in srgb, var(--surface) 92%, transparent); color: var(--text); font-size: 22px; line-height: 1; box-shadow: 0 2px 8px #0002; cursor: pointer; }
+.panel-toggle-left { left: 6px; border-radius: 7px; }
+.panel-toggle-right { right: 6px; border-radius: 7px; }
+.panel-toggle:hover { color: var(--accent); border-color: var(--accent); }
+.scene-context-menu { position: fixed; z-index: 1000; min-width: 188px; max-width: min(260px, calc(100vw - 16px)); padding: 5px; border: 1px solid var(--line-strong); border-radius: 9px; background: var(--surface); color: var(--text); box-shadow: 0 12px 36px #0005; }
+.scene-context-menu[hidden] { display: none; }
+.scene-context-menu button { display: block; width: 100%; border: 0; background: transparent; color: inherit; text-align: left; padding: 8px 10px; border-radius: 5px; }
+.scene-context-menu button:hover, .scene-context-menu button:focus-visible { outline: none; background: var(--accent-soft); color: var(--text); }
+.scene-context-menu button:disabled { opacity: .45; cursor: not-allowed; }
 
 /* Klaviatuuriga juhitav FPV-simulaator */
 .sim-launch { border-color: var(--accent); color: var(--accent); font-weight: 600; }
@@ -399,7 +412,7 @@ button:disabled { opacity: .45; cursor: default; }
 }
 
 /* Paremal paneel */
-.panel { background: var(--surface); border-left: 1px solid var(--line); display: flex; flex-direction: column; min-height: 0; }
+.panel { grid-column: 3; min-width: 0; background: var(--surface); border-left: 1px solid var(--line); display: flex; flex-direction: column; min-height: 0; }
 .tabs { display: flex; border-bottom: 1px solid var(--line); overflow-x: auto; scrollbar-width: none; }
 .tabs button {
   border: 0; border-radius: 0; background: none; padding: 9px 5px; font-size: 12.5px; flex: 1 0 auto; color: var(--muted);
@@ -475,6 +488,11 @@ table.plan td.num { text-align: right; font-variant-numeric: tabular-nums; }
 @media (max-width: 1000px) {
   body { overflow: auto; }
   .layout { grid-template-columns: 1fr; grid-template-rows: auto 70vh auto; }
+  .layout.palette-collapsed, .layout.inspector-collapsed, .layout.palette-collapsed.inspector-collapsed { grid-template-columns: 1fr; grid-template-rows: auto 70vh auto; }
+  .palette, .stage, .panel { grid-column: 1; }
+  .palette { grid-row: 1; }
+  .stage { grid-row: 2; }
+  .panel { grid-row: 3; }
   .palette { border-right: 0; border-bottom: 1px solid var(--line); }
   .pal-grid { grid-template-columns: repeat(auto-fill, minmax(84px, 1fr)); }
   .panel { border-left: 0; border-top: 1px solid var(--line); }
@@ -514,3 +532,12 @@ table.plan td.num { text-align: right; font-variant-numeric: tabular-nums; }
 @media print {
   .topbar, .palette, .panel, .hint { display: none; }
 }
+.sim-program-toolbar { display:flex; flex-wrap:wrap; gap:8px; margin:14px 0; }
+.sim-program-editor-label { display:block; margin:14px 0 6px; color:var(--text); font-weight:650; }
+.sim-program-toolbar select, .sim-program-list input { min-height:36px; padding:6px 10px; }
+.sim-program-list { display:grid; gap:8px; padding:0; list-style:none; }
+.sim-program-list li { display:flex; align-items:center; gap:10px; padding:9px 11px; border:1px solid var(--line); border-radius:9px; background:var(--surface); }
+.sim-program-list li > span { flex:1; }
+.sim-program-list label { display:flex; align-items:center; gap:7px; color:var(--muted, #94a3b8); }
+.sim-program-list input { width:90px; }
+.sim-program-python { display:block; width:100%; min-height:260px; margin-top:0; padding:12px; color:var(--text); background:var(--surface); border:1px solid var(--line); border-radius:9px; font:12px/1.5 Consolas, monospace; resize:vertical; tab-size:4; }
