@@ -15,7 +15,7 @@
   <meta property="og:image:alt" content="Droonirajaplaneerija: 3D-vaade drooni lennurajast">
   <meta name="twitter:card" content="summary_large_image">
   <link rel="icon" href="../assets/track/ring.svg">
-  <link rel="stylesheet" href="css/style.css?v=theme-toggle-1">
+  <link rel="stylesheet" href="css/style.css?v=texture-fix-2">
 </head>
 <body>
   <header class="topbar">
@@ -44,7 +44,6 @@
     <div class="tb-group">
       <button data-act="rotL" class="icon" title="Pööra vaadet vasakule ( [ )" data-i18n-title="btn.rotL.t">⟲</button>
       <button data-act="rotR" class="icon" title="Pööra vaadet paremale ( ] )" data-i18n-title="btn.rotR.t">⟳</button>
-      <button data-act="top" id="topBtn" title="Pealtvaade / 2,5D (T)" data-i18n-title="btn.top.t">Pealt</button>
       <button data-act="fit" title="Mahuta saal ekraanile (F)" data-i18n="btn.fit" data-i18n-title="btn.fit.t">Mahuta</button>
     </div>
 
@@ -78,7 +77,7 @@
 
     <section class="stage">
       <div class="canvas-wrap">
-        <canvas id="scene" tabindex="0" aria-label="Droonirada 2,5D-vaates" data-i18n-aria="scene.aria"></canvas>
+        <canvas id="scene" tabindex="0" aria-label="Droonirada 3D-vaates" data-i18n-aria="scene.aria"></canvas>
         <div class="hint" id="hint"></div>
       </div>
       <div class="profile-wrap">
@@ -211,7 +210,19 @@
             <option value="neo2" data-i18n="drone.neo2">DJI Neo 2</option>
           </select>
           <p class="sim-route-hint" data-i18n="sim.settings.droneHint">Valik salvestatakse rajaga ja on sama rajaplaneerijas ning simulaatoris.</p>
-          <p class="sim-route-hint"><span data-i18n="sim.settings.droneModelCredit">DJI Neo 2 mudel:</span> <a href="https://sketchfab.com/3d-models/dji-neo-2-90f151c2a6f34c3da2020e61654ed15f" target="_blank" rel="noopener noreferrer">Dji Neo 2 by 5Blender · Sketchfab · CC Attribution</a></p>
+          <div class="drone-model-view" id="droneModelView">
+            <label class="drone-model-texture-label" for="droneModelTextureSelect" data-i18n="drone.preview.textureLabel">Tekstuuri kuvamine</label>
+            <select id="droneModelTextureSelect" class="sim-route-select">
+              <option value="shaded" data-i18n="drone.preview.shaded">Shaded (valmis välimus)</option>
+              <option value="pbr" data-i18n="drone.preview.pbr">PBR (materjalitekstuurid)</option>
+            </select>
+            <canvas id="droneModelCanvas" tabindex="0" aria-label="Droon pööratavas 3D-vaates" data-i18n-aria="drone.preview.label"></canvas>
+            <p class="drone-model-status" id="droneModelStatus" aria-live="polite" data-i18n="drone.preview.loading">Laadin 3D-mudelit…</p>
+          </div>
+          <p class="sim-route-hint" data-i18n="drone.preview.hint">Hoia hiire paremat nuppu all ja liiguta vaadet pööramiseks; ratas suumib.</p>
+          <div class="drone-model-missing" id="droneModelMissing" hidden>
+            <p class="sim-route-hint" data-i18n="drone.preview.missing">Sellele droonile pole kohalikku 3D-mudelit lisatud.</p>
+          </div>
         </section>
       </div>
     </section>
@@ -230,9 +241,10 @@
 
   <input type="file" id="fileIn" accept=".json,application/json" hidden>
 
-  <script src="js/i18n.js?v=keyboard-config-1"></script>
+  <script src="js/i18n.js?v=drone-preview-1"></script>
   <script src="js/elements.js?v=dev"></script>
   <script src="js/simulator.js?v=keyboard-config-1"></script>
-  <script src="js/app.js?v=keyboard-config-1"></script>
+  <script src="js/drone-preview.js?v=orbit-ease-1"></script>
+  <script src="js/app.js?v=texture-fix-2"></script>
 </body>
 </html>

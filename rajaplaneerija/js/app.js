@@ -1,5 +1,5 @@
 'use strict';
-/* Droonirajaplaneerija: raja koostamine lohistades, lennutrajektoor, 2,5D-vaade ja eksport. */
+/* Droonirajaplaneerija: raja koostamine lohistades, lennutrajektoor, pööratav 3D-vaade ja eksport. */
 (function () {
   const $ = (s, r) => (r || document).querySelector(s);
   const rad = d => d * Math.PI / 180;
@@ -57,6 +57,9 @@
     controlHint: $('#simControlHint'),
   };
   const simulator = new FlightSimulator($('#simCanvas'), $('#simMap'), simUi, simulationScene, simulationLabels, () => {});
+  const dronePreview = new DroneModelPreview($('#droneModelCanvas'), $('#droneModelStatus'), () => ({
+    loading: tr('drone.preview.loading'), ready: tr('drone.preview.ready'), failed: tr('drone.preview.failed'), unsupported: tr('drone.preview.unsupported'),
+  }));
 
   function simulationLabels() {
     return {
@@ -162,6 +165,21 @@
     if (select) select.value = state.drone;
   }
 
+  function updateDronePreview() {
+    if (!state) return;
+    const modelView = $('#droneModelView'), missing = $('#droneModelMissing');
+    const modelDirectories = { codrone: 'codrone', neo2: 'codrone/Neo2' };
+    const modelDirectory = modelDirectories[state.drone];
+    const hasModel = Boolean(modelDirectory);
+    modelView.hidden = !hasModel;
+    missing.hidden = hasModel;
+    if (hasModel) {
+      const textureMode = $('#droneModelTextureSelect')?.value || 'shaded';
+      const modelFile = textureMode === 'pbr' ? 'base_basic_pbr.glb' : 'base_basic_shaded.glb';
+      dronePreview.load(`assets/models/${modelDirectory}/${modelFile}?v=texture-fix-2`);
+    }
+  }
+
   function afterLoad() {
     if (ui.sel && !byId(ui.sel)) ui.sel = null;
     if (ui.wp != null && ui.wp >= state.path.length) ui.wp = null;
@@ -216,7 +234,7 @@
   }
   function snap(v, free) { const g = state.hall.grid; return free || !g ? Math.round(v * 100) / 100 : Math.round(v / g) * g; }
 
-  // ---------- projektsioon (2,5D) ----------
+  // ---------- 3D-stseeni ortograafiline projektsioon ----------
   function proj(p) {
     const x = p[0] - state.hall.w / 2, y = p[1] - state.hall.l / 2;
     const c = Math.cos(rad(view.yaw)), s = Math.sin(rad(view.yaw));
@@ -913,7 +931,11 @@
     canvas.focus();
     const [mx, my] = localPos(e);
     const pan = () => { drag = { kind: 'pan', mx, my, px: view.panX, py: view.panY }; canvas.setPointerCapture(e.pointerId); canvas.classList.add('dragging'); };
-    if (e.button === 1 || e.button === 2 || spaceDown) return pan();
+    if (e.button === 2) {
+      drag = { kind: 'orbit', mx, my, yaw: view.yaw, pitch: view.pitch };
+      canvas.setPointerCapture(e.pointerId); canvas.classList.add('dragging'); return;
+    }
+    if (e.button === 1 || spaceDown) return pan();
     if (e.button !== 0) return;
     if (ui.mode === 'path') {
       const b = hitBadge(mx, my);
@@ -941,6 +963,11 @@
   canvas.addEventListener('pointermove', e => {
     if (!drag) return;
     const [mx, my] = localPos(e);
+    if (drag.kind === 'orbit') {
+      view.yaw = drag.yaw + (mx - drag.mx) * 0.45;
+      view.pitch = clamp(drag.pitch + (my - drag.my) * 0.35, 12, 85);
+      requestRender(); return;
+    }
     if (drag.kind === 'pan') {
       view.panX = drag.px + mx - drag.mx; view.panY = drag.py + my - drag.my;
       requestRender(); return;
@@ -1011,7 +1038,6 @@
     else if (k === 'l' || k === 'L') setMode('path');
     else if (k === 'p' || k === 'P') setPlaying(!anim.playing);
     else if (k === 'f' || k === 'F') { fitView(); requestRender(); }
-    else if (k === 't' || k === 'T') toggleTop();
     else if (k === '[') rotateView(-45);
     else if (k === ']') rotateView(45);
     else if (k.startsWith('Arrow') && ui.sel && ui.mode === 'build') {
@@ -1026,11 +1052,6 @@
   document.addEventListener('keyup', e => { if (e.key === ' ') spaceDown = false; });
 
   function rotateView(d) { view.yaw += d; fitView(); requestRender(); }
-  function toggleTop() {
-    view.pitch = view.pitch > 80 ? 36 : 90;
-    $('#topBtn').textContent = tr(view.pitch > 80 ? 'btn.top25' : 'btn.top');
-    fitView(); requestRender();
-  }
 
   // ---------- failid ----------
   function download(name, text, type) {
@@ -1527,7 +1548,6 @@
       case 'redo': redo(); break;
       case 'rotL': rotateView(-45); break;
       case 'rotR': rotateView(45); break;
-      case 'top': toggleTop(); break;
       case 'fit': fitView(); requestRender(); break;
       case 'play': setPlaying(!anim.playing); break;
       case 'sim': startSimulation(); break;
@@ -1551,6 +1571,7 @@
       button.setAttribute('aria-selected', String(active));
     });
     document.querySelectorAll('[data-settings-page]').forEach(page => { page.hidden = page.dataset.settingsPage !== selected; });
+    if (selected === 'drones') updateDronePreview();
   }));
   $('#simControllerRescan').addEventListener('click', () => simulator.scanGamepads(true));
   $('#simControllerSelect').addEventListener('change', e => simulator.selectGamepad(e.target.value));
@@ -1597,8 +1618,10 @@
     invalidate();
     renderPanel();
     updateSimDroneCurrent();
+    updateDronePreview();
     if (simulator.active && simulator.scene) simulator.scene.drone = drone;
   });
+  $('#droneModelTextureSelect').addEventListener('change', updateDronePreview);
 
   // ---------- palett ----------
   function renderPalette() {
@@ -1649,8 +1672,8 @@
     document.querySelectorAll('[data-i18n-aria]').forEach(n => n.setAttribute('aria-label', tr(n.dataset.i18nAria)));
     document.querySelectorAll('#langSeg button').forEach(b => b.classList.toggle('on', b.dataset.lang === LANG));
     $('#playBtn').textContent = tr(anim.playing ? 'btn.stop' : 'btn.play');
-    $('#topBtn').textContent = tr(view.pitch > 80 ? 'btn.top25' : 'btn.top');
     $('#simPause').textContent = tr(simulator.paused ? 'sim.resume' : 'sim.pause');
+    if (!$('#simSettings').hidden && !$('#droneModelView').hidden) updateDronePreview();
     simulator.updateControlHint();
     if (simulator.settingsOpen) simulator.refreshSettings();
   }

@@ -311,6 +311,13 @@ button:disabled { opacity: .45; cursor: default; }
 .sim-route-hint { max-width: 620px; margin: 10px 0 0; color: var(--muted); font-size: 12px; line-height: 1.5; }
 .sim-route-hint a { color: var(--accent); text-underline-offset: 2px; }
 .sim-route-feedback { min-height: 18px; margin: 7px 0 0; color: var(--sim-feedback); font-size: 12px; }
+.drone-model-view { width: min(760px, 100%); margin-top: 16px; overflow: hidden; border: 1px solid var(--line-strong); border-radius: 10px; background: radial-gradient(ellipse at 50% 42%, #aeb6bf 0%, #727b85 72%, #424b56 100%); }
+.drone-model-texture-label { display: block; margin: 12px 12px 6px; color: var(--muted); font-size: 12px; font-weight: 700; }
+.drone-model-view > .sim-route-select { width: calc(100% - 24px); margin: 0 12px 8px; }
+#droneModelCanvas { display: block; width: 100%; height: min(46vh, 360px); min-height: 230px; cursor: grab; touch-action: none; }
+#droneModelCanvas.dragging { cursor: grabbing; }
+.drone-model-status { min-height: 18px; margin: 0; padding: 8px 12px; color: #cbd5e1; font-size: 12px; }
+.drone-model-missing { margin-top: 14px; }
 .sim-control-mode { display: flex; gap: 12px; margin: 0 0 14px; padding: 0; border: 0; }
 .sim-control-mode legend { margin-bottom: 8px; color: var(--muted); font-size: 12px; font-weight: 700; }
 .sim-control-mode label { min-width: 145px; display: flex; align-items: center; gap: 8px; padding: 10px 12px; border: 1px solid var(--line-strong); border-radius: 7px; background: var(--sim-control-bg); color: var(--text); cursor: pointer; }
