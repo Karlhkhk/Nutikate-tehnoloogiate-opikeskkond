@@ -15,7 +15,7 @@
   <meta property="og:image:alt" content="Droonirajaplaneerija: 3D-vaade drooni lennurajast">
   <meta name="twitter:card" content="summary_large_image">
   <link rel="icon" href="../assets/track/ring.svg">
-  <link rel="stylesheet" href="css/style.css?v=sim-expansion-2">
+  <link rel="stylesheet" href="css/style.css?v=sim-expansion-3">
 </head>
 <body>
   <header class="topbar">
@@ -96,7 +96,7 @@
   </main>
 
   <section class="sim-overlay" id="simOverlay" hidden aria-hidden="true" aria-label="FPV-simulaator" data-i18n-aria="sim.title">
-    <canvas id="simCanvas" aria-label="FPV-lennuvaade" data-i18n-aria="sim.view"></canvas>
+    <canvas id="simCanvas" tabindex="0" aria-label="FPV-lennuvaade" data-i18n-aria="sim.view"></canvas>
     <div class="sim-reticle" aria-hidden="true"></div>
     <header class="sim-head">
       <div><strong data-i18n="sim.title">FPV-simulaator</strong><span id="simStatus" data-i18n="sim.ready">Valmis</span></div>
@@ -268,10 +268,10 @@
 
   <input type="file" id="fileIn" accept=".json,application/json" hidden>
 
-  <script src="js/i18n.js?v=sim-expansion-2"></script>
+  <script src="js/i18n.js?v=sim-expansion-3"></script>
   <script src="js/elements.js?v=dev"></script>
-  <script src="js/simulator.js?v=sim-expansion-2"></script>
-  <script src="js/drone-preview.js?v=orbit-ease-1"></script>
-  <script src="js/app.js?v=sim-expansion-2"></script>
+  <script src="js/simulator.js?v=sim-expansion-3"></script>
+  <script src="js/drone-preview.js?v=sim-model-cache-2"></script>
+  <script src="js/app.js?v=sim-expansion-3"></script>
 </body>
 </html>

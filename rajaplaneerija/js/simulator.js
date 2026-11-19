@@ -104,6 +104,20 @@ class FlightSimulator {
     this.glDrone = gl.createBuffer();
     gl.enable(gl.DEPTH_TEST); gl.depthFunc(gl.LEQUAL);
     gl.enable(gl.BLEND); gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA);
+    this.compileDroneProgram();
+  }
+
+  compileDroneProgram() {
+    if (!this.gl || this.glDroneProgram) return;
+    try {
+    const gl=this.gl, compile=(kind,source)=>{const shader=gl.createShader(kind);gl.shaderSource(shader,source);gl.compileShader(shader);if(!gl.getShaderParameter(shader,gl.COMPILE_STATUS))throw new Error(gl.getShaderInfoLog(shader));return shader;};
+    const vs=compile(gl.VERTEX_SHADER,'attribute vec3 aPosition; attribute vec3 aNormal; attribute vec2 aUv; uniform mat4 uMvp; uniform mat4 uModelView; varying vec3 vNormal; varying vec2 vUv; void main(){ gl_Position=uMvp*vec4(aPosition,1.0); vNormal=mat3(uModelView)*aNormal; vUv=aUv; }');
+    const fs=compile(gl.FRAGMENT_SHADER,'precision mediump float; varying vec3 vNormal; varying vec2 vUv; uniform sampler2D uTexture; uniform float uUnlit; void main(){ vec3 tex=texture2D(uTexture,vUv).rgb; if(uUnlit>0.5){ gl_FragColor=vec4(tex,1.0); return; } vec3 N=normalize(vNormal); vec3 L=normalize(vec3(-0.4,0.72,0.82)); float diffuse=max(dot(N,L),0.0); float specular=pow(max(dot(N,normalize(L+vec3(0.0,0.0,1.0))),0.0),24.0)*0.18; vec3 lit=tex*(0.48+0.8*diffuse)+vec3(specular); gl_FragColor=vec4(lit,1.0); }');
+    const program=gl.createProgram();gl.attachShader(program,vs);gl.attachShader(program,fs);gl.linkProgram(program);
+    if(!gl.getProgramParameter(program,gl.LINK_STATUS))throw new Error(gl.getProgramInfoLog(program));
+    this.glDroneProgram=program;
+    this.glDroneAttrs={position:gl.getAttribLocation(program,'aPosition'),normal:gl.getAttribLocation(program,'aNormal'),uv:gl.getAttribLocation(program,'aUv'),mvp:gl.getUniformLocation(program,'uMvp'),modelView:gl.getUniformLocation(program,'uModelView'),texture:gl.getUniformLocation(program,'uTexture'),unlit:gl.getUniformLocation(program,'uUnlit')};
+    } catch(error) { this.glDroneProgram=null; console.warn('Drone model shader is unavailable; using simple drone geometry.',error); }
   }
 
   glColor(color) {
@@ -349,11 +363,56 @@ class FlightSimulator {
     };
     bind(this.glTriangles); gl.drawArrays(gl.TRIANGLES, 0, this.triangleCount);
     bind(this.glLines); gl.lineWidth(1.5); gl.drawArrays(gl.LINES, 0, this.lineCount);
-    this.drawDroneMarker(gl);
     gl.depthMask(false);
     bind(this.glRouteGlow); gl.drawArrays(gl.TRIANGLES, 0, this.routeGlowCount);
     bind(this.glRouteCore); gl.drawArrays(gl.TRIANGLES, 0, this.routeCoreCount);
     gl.depthMask(true);
+    if (this.cameraMode !== 'fpv' && !this.drawDroneModel(gl, view, proj)) this.drawDroneMarker(gl);
+  }
+
+  ensureDroneModel() {
+    const url=this.getDroneModelUrl?.(this.scene?.drone);
+    if (!url || !this.gl || !this.glDroneProgram || !this.modelPreview?.gl) return;
+    if (this.glDroneFailedUrl===url) return;
+    if (this.glDroneGpu?.url===url || this.glDroneLoadUrl===url) return;
+    this.glDroneGpu=null; this.glDroneFailedUrl=''; this.glDroneLoadUrl=url;
+    void this.modelPreview.load(url).then(async () => {
+      const source=this.modelPreview.model;
+      if (!source || this.modelPreview.url!==url || this.glDroneLoadUrl!==url) { if (this.glDroneLoadUrl===url) { this.glDroneLoadUrl=''; if (!source && this.modelPreview.url===url) this.glDroneFailedUrl=url; } return; }
+      const gl=this.gl, indexType=source.indexType;
+      if (indexType===gl.UNSIGNED_INT && !gl.getExtension('OES_element_index_uint')) { this.glDroneLoadUrl=''; this.glDroneFailedUrl=url; return; }
+      const makeBuffer=(target,data)=>{const buffer=gl.createBuffer();gl.bindBuffer(target,buffer);gl.bufferData(target,data,gl.STATIC_DRAW);return buffer;};
+      const position=makeBuffer(gl.ARRAY_BUFFER,source.positions), normal=makeBuffer(gl.ARRAY_BUFFER,source.normals), uv=makeBuffer(gl.ARRAY_BUFFER,source.uvs), indices=makeBuffer(gl.ELEMENT_ARRAY_BUFFER,source.indices);
+      const texture=gl.createTexture();
+      await new Promise((resolve,reject)=>{
+        const image=new Image(), objectUrl=URL.createObjectURL(new Blob([source.imageBytes],{type:source.mimeType||'image/png'}));
+        image.onload=()=>{try{gl.bindTexture(gl.TEXTURE_2D,texture);gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL,false);gl.texImage2D(gl.TEXTURE_2D,0,gl.RGBA,gl.RGBA,gl.UNSIGNED_BYTE,image);gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_MIN_FILTER,gl.LINEAR);gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_MAG_FILTER,gl.LINEAR);gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_WRAP_S,gl.CLAMP_TO_EDGE);gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_WRAP_T,gl.CLAMP_TO_EDGE);URL.revokeObjectURL(objectUrl);resolve();}catch(error){URL.revokeObjectURL(objectUrl);reject(error);}};
+        image.onerror=()=>{URL.revokeObjectURL(objectUrl);reject(new Error('Drone texture could not be decoded'));};image.src=objectUrl;
+      });
+      if (this.glDroneLoadUrl!==url) return;
+      this.glDroneGpu={url,source,position,normal,uv,indices,texture,indexType};
+    }).catch(error=>{if(this.glDroneLoadUrl===url){this.glDroneLoadUrl='';this.glDroneFailedUrl=url;console.warn('Simulator drone model could not be loaded:',error);}});
+  }
+
+  drawDroneModel(gl, view, projection) {
+    if (!this.glDroneProgram) return false;
+    this.ensureDroneModel();
+    const mesh=this.glDroneGpu;
+    if (!mesh || mesh.url!==this.getDroneModelUrl?.(this.scene?.drone)) return false;
+    const a=this.glDroneAttrs, s=mesh.source, scale=(this.scene.drone==='neo2'?.42:.32)/Math.max(.01,s.maxSpan), angle=Math.PI/2-this.yaw, c=Math.cos(angle), sn=Math.sin(angle);
+    const center=[this.pos[0],this.pos[2],this.pos[1]];
+    const translate=new Float32Array([1,0,0,0,0,1,0,0,0,0,1,0,center[0],center[1],center[2],1]);
+    const rotate=new Float32Array([c,0,-sn,0,0,1,0,0,sn,0,c,0,0,0,0,1]);
+    const scaled=new Float32Array([scale,0,0,0,0,scale,0,0,0,0,scale,0,0,0,0,1]);
+    const centered=new Float32Array([1,0,0,0,0,1,0,0,0,0,1,0,-s.center[0],-s.center[1],-s.center[2],1]);
+    const model=this.multiply4(translate,this.multiply4(rotate,this.multiply4(scaled,centered))), modelView=this.multiply4(view,model), mvp=this.multiply4(projection,modelView);
+    gl.useProgram(this.glDroneProgram);gl.uniformMatrix4fv(a.mvp,false,mvp);gl.uniformMatrix4fv(a.modelView,false,modelView);gl.uniform1f(a.unlit,s.unlit?1:0);
+    gl.bindBuffer(gl.ARRAY_BUFFER,mesh.position);gl.enableVertexAttribArray(a.position);gl.vertexAttribPointer(a.position,3,gl.FLOAT,false,0,0);
+    gl.bindBuffer(gl.ARRAY_BUFFER,mesh.normal);gl.enableVertexAttribArray(a.normal);gl.vertexAttribPointer(a.normal,3,gl.FLOAT,false,0,0);
+    gl.bindBuffer(gl.ARRAY_BUFFER,mesh.uv);gl.enableVertexAttribArray(a.uv);gl.vertexAttribPointer(a.uv,2,gl.FLOAT,false,0,0);
+    gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER,mesh.indices);gl.activeTexture(gl.TEXTURE0);gl.bindTexture(gl.TEXTURE_2D,mesh.texture);gl.uniform1i(a.texture,0);
+    gl.drawElements(gl.TRIANGLES,s.count,mesh.indexType,0);
+    return true;
   }
 
   drawDroneMarker(gl) {
@@ -374,21 +433,31 @@ class FlightSimulator {
   bind() {
     this.cameraLook = false;
     this.onCameraPointerDown = e => {
-      if (!this.active || this.cameraMode !== 'observer' || e.button !== 2) return;
-      this.cameraLook = true; this.canvas.setPointerCapture?.(e.pointerId); e.preventDefault();
+      if (!this.active || this.cameraMode !== 'observer' || (e.button !== 0 && e.button !== 2)) return;
+      e.preventDefault();
+      if (document.pointerLockElement === this.canvas) { document.exitPointerLock?.(); return; }
+      try {
+        const request = this.canvas.requestPointerLock?.();
+        request?.catch?.(() => { this.cameraLook = false; });
+      } catch (_) { this.cameraLook = false; }
     };
     this.onCameraPointerMove = e => {
-      if (!this.cameraLook || this.cameraMode !== 'observer') return;
+      if (document.pointerLockElement !== this.canvas || this.cameraMode !== 'observer') return;
       this.observerYaw += e.movementX * .004;
       this.observerPitch = Math.max(-1.1, Math.min(1.1, this.observerPitch - e.movementY * .003));
     };
-    this.onCameraPointerUp = () => { this.cameraLook = false; };
+    this.onPointerLockChange = () => {
+      const locked = document.pointerLockElement === this.canvas;
+      if (this.cameraLook && !locked) this.cameraJustUnlockedAt = Date.now();
+      this.cameraLook = locked; this.keys.clear();
+    };
+    this.onPointerLockError = () => { this.cameraLook = false; };
     this.onContextMenu = e => { if (this.active && this.cameraMode === 'observer') e.preventDefault(); };
     this.canvas.addEventListener('pointerdown', this.onCameraPointerDown);
     this.canvas.addEventListener('pointermove', this.onCameraPointerMove);
-    this.canvas.addEventListener('pointerup', this.onCameraPointerUp);
-    this.canvas.addEventListener('pointercancel', this.onCameraPointerUp);
     this.canvas.addEventListener('contextmenu', this.onContextMenu);
+    document.addEventListener('pointerlockchange', this.onPointerLockChange);
+    document.addEventListener('pointerlockerror', this.onPointerLockError);
     this.onKeyDown = e => {
       if (!this.active) return;
       if (this.keyboardBindingCapture) { this.handleKeyboardBindingCapture(e); return; }
@@ -402,6 +471,9 @@ class FlightSimulator {
           else if (!e.shiftKey && document.activeElement === last) { e.preventDefault(); first.focus(); }
         }
         return;
+      }
+      if (e.code === 'Escape' && (document.pointerLockElement === this.canvas || Date.now() - (this.cameraJustUnlockedAt || 0) < 250)) {
+        e.preventDefault(); if (document.pointerLockElement === this.canvas) document.exitPointerLock?.(); this.keys.clear(); return;
       }
       if (['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'Space'].includes(e.code)) e.preventDefault();
       if (e.code === 'Escape') { this.close(); return; }
@@ -1181,7 +1253,7 @@ class FlightSimulator {
     const first = scene.path.slice(1).find(p => Math.hypot(p[0] - this.pos[0], p[1] - this.pos[1]) > 0.05);
     this.yaw = first ? Math.atan2(first[1] - this.pos[1], first[0] - this.pos[0]) : Math.PI / 2;
     this.pitch = 0;
-    this.observerPos = [scene.hall.w / 2, scene.hall.l / 2, 1.65];
+    this.observerPos = this.findObserverSpawn();
     this.observerYaw = this.yaw; this.observerPitch = 0;
     this.last = performance.now();
     this.ui.root.hidden = false;
@@ -1195,6 +1267,7 @@ class FlightSimulator {
 
   close() {
     if (!this.active) return;
+    if (document.pointerLockElement === this.canvas) document.exitPointerLock?.();
     this.active = false;
     this.settingsOpen = false;
     this.ui.settings.hidden = true;
@@ -1241,6 +1314,81 @@ class FlightSimulator {
     requestAnimationFrame(t => this.tick(t, token));
   }
 
+  droneCollisionRadius() { return this.scene?.drone === 'neo2' ? 0.19 : this.scene?.drone === 'tinywhoop' ? 0.12 : 0.16; }
+
+  pointSegmentDistance(point, a, b) {
+    const ab = b.map((v,i) => v-a[i]), ap = point.map((v,i) => v-a[i]);
+    const denom = ab.reduce((sum,v) => sum+v*v, 0) || 1;
+    const t = Math.max(0, Math.min(1, ap.reduce((sum,v,i) => sum+v*ab[i], 0) / denom));
+    return Math.hypot(...point.map((v,i) => v-(a[i]+ab[i]*t)));
+  }
+
+  pointTriangleDistance(point, a, b, c) {
+    const sub = (p,q) => p.map((v,i) => v-q[i]), dot = (p,q) => p.reduce((sum,v,i) => sum+v*q[i], 0);
+    const ab=sub(b,a), ac=sub(c,a), ap=sub(point,a), d1=dot(ab,ap), d2=dot(ac,ap);
+    if (d1<=0 && d2<=0) return Math.hypot(...ap);
+    const bp=sub(point,b), d3=dot(ab,bp), d4=dot(ac,bp);
+    if (d3>=0 && d4<=d3) return Math.hypot(...bp);
+    const vc=d1*d4-d3*d2;
+    if (vc<=0 && d1>=0 && d3<=0) { const v=d1/(d1-d3); return this.pointSegmentDistance(point,a,a.map((x,i)=>x+ab[i]*v)); }
+    const cp=sub(point,c), d5=dot(ab,cp), d6=dot(ac,cp);
+    if (d6>=0 && d5<=d6) return Math.hypot(...cp);
+    const vb=d5*d2-d1*d6;
+    if (vb<=0 && d2>=0 && d6<=0) { const w=d2/(d2-d6); return this.pointSegmentDistance(point,a,a.map((x,i)=>x+ac[i]*w)); }
+    const va=d3*d6-d5*d4;
+    if (va<=0 && d4-d3>=0 && d5-d6>=0) { const w=(d4-d3)/((d4-d3)+(d5-d6)); return this.pointSegmentDistance(point,b,b.map((x,i)=>x+(c[i]-x)*w)); }
+    if (Math.abs(va+vb+vc)<1e-12) return Math.min(this.pointSegmentDistance(point,a,b),this.pointSegmentDistance(point,b,c),this.pointSegmentDistance(point,c,a));
+    const denom=1/(va+vb+vc), v=vb*denom, w=vc*denom;
+    const closest=a.map((x,i)=>x+ab[i]*v+ac[i]*w);
+    return Math.hypot(...point.map((x,i)=>x-closest[i]));
+  }
+
+  pointHitsObstacle(point, radius, colliders) {
+    for (const element of colliders || []) for (const primitive of element) {
+      if (primitive.k === 'l') {
+        if (this.pointSegmentDistance(point, primitive.a, primitive.b) <= radius + (primitive.w || .025) / 2) return true;
+      } else if (primitive.k === 'p' && primitive.pts?.length >= 3) {
+        for (let i=1; i<primitive.pts.length-1; i++) {
+          if (this.pointTriangleDistance(point, primitive.pts[0], primitive.pts[i], primitive.pts[i+1]) <= radius + .012) return true;
+        }
+      }
+    }
+    return false;
+  }
+
+  positionBlocked(position, radius, camera = false) {
+    const h=this.scene.hall, margin=radius+.06, lowZ=camera?1.05:.12, highZ=camera?h.h-.18:h.h-radius;
+    if (position[0]<margin || position[0]>h.w-margin || position[1]<margin || position[1]>h.l-margin || position[2]<lowZ || position[2]>highZ) return true;
+    const colliders=this.scene.colliders || this.scene.elements;
+    if (!camera) return this.pointHitsObstacle(position, radius, colliders);
+    const torso=[position[0],position[1],position[2]-.68];
+    return this.pointHitsObstacle(position, radius*.7, colliders) || this.pointHitsObstacle(torso, radius, colliders);
+  }
+
+  moveWithCollision(start, target, radius, camera = false) {
+    const pos=start.slice(), stepSize=Math.max(.035, radius*.38);
+    for (let axis=0; axis<3; axis++) {
+      const delta=target[axis]-pos[axis]; if (Math.abs(delta)<1e-7) continue;
+      const axisStart=pos[axis], steps=Math.max(1,Math.ceil(Math.abs(delta)/stepSize));
+      for (let step=1; step<=steps; step++) {
+        const candidate=pos.slice(); candidate[axis]=axisStart+delta*step/steps;
+        const h=this.scene.hall, margin=radius+.06;
+        candidate[0]=Math.max(margin,Math.min(h.w-margin,candidate[0]));
+        candidate[1]=Math.max(margin,Math.min(h.l-margin,candidate[1]));
+        candidate[2]=Math.max(camera?1.05:.12,Math.min(camera?h.h-.18:h.h-radius,candidate[2]));
+        if (this.positionBlocked(candidate,radius,camera)) break;
+        pos[axis]=candidate[axis];
+      }
+    }
+    return pos;
+  }
+
+  findObserverSpawn() {
+    const h=this.scene.hall, z=Math.min(1.65,h.h-.4), candidates=[[h.w/2,h.l/2,z]];
+    for (let y=1; y<h.l; y+=1) for (let x=1; x<h.w; x+=1) candidates.push([x,y,z]);
+    return candidates.find(p=>!this.positionBlocked(p,.24,true)) || [h.w/2,h.l/2,z];
+  }
+
   update(dt) {
     if (this.cameraMode === 'observer') { this.updateObserver(dt); this.updateHud(); return; }
     if (this.programRunning) { this.updateProgram(dt); this.updateHud(); return; }
@@ -1262,12 +1410,9 @@ class FlightSimulator {
     const max = 3.2 * boost, planar = Math.hypot(this.vel[0], this.vel[1]);
     if (planar > max) { this.vel[0] *= max / planar; this.vel[1] *= max / planar; }
     this.vel[2] = Math.max(-1.8, Math.min(1.8, this.vel[2]));
-    const prev = this.pos.slice();
-    this.pos = [this.pos[0] + this.vel[0] * dt, this.pos[1] + this.vel[1] * dt, this.pos[2] + this.vel[2] * dt];
-    const h = this.scene.hall;
-    if (this.pos[0] < 0.12 || this.pos[0] > h.w - 0.12) { this.pos[0] = Math.max(0.12, Math.min(h.w - 0.12, this.pos[0])); this.vel[0] = 0; }
-    if (this.pos[1] < 0.12 || this.pos[1] > h.l - 0.12) { this.pos[1] = Math.max(0.12, Math.min(h.l - 0.12, this.pos[1])); this.vel[1] = 0; }
-    if (this.pos[2] < 0.12 || this.pos[2] > h.h - 0.1) { this.pos[2] = Math.max(0.12, Math.min(h.h - 0.1, this.pos[2])); this.vel[2] = 0; }
+    const prev = this.pos.slice(), requested=[this.pos[0]+this.vel[0]*dt,this.pos[1]+this.vel[1]*dt,this.pos[2]+this.vel[2]*dt];
+    this.pos = this.moveWithCollision(prev, requested, this.droneCollisionRadius());
+    for (let axis=0; axis<3; axis++) if (Math.abs(this.pos[axis]-requested[axis])>1e-5) this.vel[axis]=0;
     this.updatePathTrail(dt);
     const moved = Math.hypot(this.pos[0] - prev[0], this.pos[1] - prev[1], this.pos[2] - prev[2]);
     this.distance += moved;
@@ -1280,6 +1425,7 @@ class FlightSimulator {
 
   setCameraMode(mode) {
     if (!['fpv', 'chase', 'observer'].includes(mode)) return;
+    if (mode !== 'observer' && document.pointerLockElement === this.canvas) document.exitPointerLock?.();
     this.cameraMode = mode;
     this.cameraFollowEye = null;
     try { localStorage.setItem('droonirajaplaneerija.simCamera', mode); } catch (_) {}
@@ -1334,7 +1480,8 @@ class FlightSimulator {
     }
     this.programElapsed += dt;
     const s = this.programStart, t = Math.min(1, this.programElapsed / s.duration), ease = t*t*(3-2*t), prev = this.pos.slice();
-    this.pos = s.pos.map((v,i) => v + (s.target[i]-v)*ease); this.yaw = s.yaw + (s.targetYaw-s.yaw)*ease;
+    const desired=s.pos.map((v,i) => v + (s.target[i]-v)*ease);
+    this.pos = this.moveWithCollision(prev, desired, this.droneCollisionRadius()); this.yaw = s.yaw + (s.targetYaw-s.yaw)*ease;
     this.vel = this.pos.map((v,i) => (v-prev[i])/Math.max(dt, .001));
     this.updatePathTrail(dt); this.distance += Math.hypot(...this.pos.map((v,i) => v-prev[i])); this.elapsed += dt;
     this.checkWaypoint(prev);
@@ -1356,10 +1503,8 @@ class FlightSimulator {
     const turn = controller ? controller.yaw : Number(down('turnRight')) - Number(down('turnLeft'));
     this.observerYaw += turn * 1.8 * dt;
     const speed = controller ? 2.4 : (down('boost') ? 4 : 2.2), fx=Math.cos(this.observerYaw), fy=Math.sin(this.observerYaw);
-    this.observerPos[0] += (fx*forward - fy*side)*speed*dt;
-    this.observerPos[1] += (fy*forward + fx*side)*speed*dt;
-    this.observerPos[2] = Math.max(.3, Math.min(this.scene.hall.h, this.observerPos[2] + vertical*speed*dt));
-    const h=this.scene.hall; this.observerPos[0]=Math.max(.2,Math.min(h.w-.2,this.observerPos[0])); this.observerPos[1]=Math.max(.2,Math.min(h.l-.2,this.observerPos[1]));
+    const requested=[this.observerPos[0]+(fx*forward-fy*side)*speed*dt,this.observerPos[1]+(fy*forward+fx*side)*speed*dt,this.observerPos[2]+vertical*speed*dt];
+    this.observerPos=this.moveWithCollision(this.observerPos,requested,.24,true);
     if (this.programRunning) this.updateProgram(dt);
   }
 

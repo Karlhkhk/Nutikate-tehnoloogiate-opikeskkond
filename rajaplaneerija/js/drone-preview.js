@@ -156,7 +156,11 @@ class DroneModelPreview {
     gl.bindBuffer(gl.ARRAY_BUFFER, this.uvBuffer); gl.bufferData(gl.ARRAY_BUFFER, uvs, gl.STATIC_DRAW);
     gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, this.indexBuffer); gl.bufferData(gl.ELEMENT_ARRAY_BUFFER, indices, gl.STATIC_DRAW);
     const material = gltf.materials?.[primitive.material] || {};
-    return { count: indices.length, indexType: indexAccessor.componentType === 5125 ? gl.UNSIGNED_INT : indexAccessor.componentType === 5121 ? gl.UNSIGNED_BYTE : gl.UNSIGNED_SHORT, center, scale: 1.8 / maxSpan, unlit: Boolean(material.emissiveTexture) };
+    return {
+      count: indices.length, indexType: indexAccessor.componentType === 5125 ? gl.UNSIGNED_INT : indexAccessor.componentType === 5121 ? gl.UNSIGNED_BYTE : gl.UNSIGNED_SHORT,
+      center, scale: 1.8 / maxSpan, maxSpan, unlit: Boolean(material.emissiveTexture),
+      positions, normals, uvs, indices, imageBytes, mimeType: image.mimeType || 'image/png',
+    };
   }
 
   readAccessor(gltf, binary, index, indices = false) {

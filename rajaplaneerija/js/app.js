@@ -161,6 +161,14 @@
   const dronePreview = new DroneModelPreview($('#droneModelCanvas'), $('#droneModelStatus'), () => ({
     loading: tr('drone.preview.loading'), ready: tr('drone.preview.ready'), failed: tr('drone.preview.failed'), unsupported: tr('drone.preview.unsupported'),
   }));
+  simulator.modelPreview = dronePreview;
+  simulator.getDroneModelUrl = drone => {
+    const directory = ({ codrone: 'codrone', neo2: 'codrone/Neo2' })[drone];
+    if (!directory) return null;
+    const textureMode = drone === state?.drone ? ($('#droneModelTextureSelect')?.value || 'shaded') : 'shaded';
+    const file = textureMode === 'pbr' ? 'base_basic_pbr.glb' : 'base_basic_shaded.glb';
+    return `assets/models/${directory}/${file}`;
+  };
 
   function simulationLabels() {
     return {
@@ -210,6 +218,7 @@
     }
     return {
       hall: { ...state.hall }, drone: state.drone, elements: state.elements.map(worldPrims),
+      colliders: state.elements.filter(el => T(el).kind !== 'pad').map(worldPrims),
       path: flight.pts.map(q => q.p), route, start: flight.pts[0]?.p.slice() || [state.hall.w / 2, state.hall.l / 2, 0.15],
     };
   }
