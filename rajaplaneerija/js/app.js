@@ -197,7 +197,7 @@
       keyboardKeyArrowRight: tr('sim.keyboard.keyArrowRight'), keyboardKeySpace: tr('sim.keyboard.keySpace'),
       channelThrottle: tr('sim.channel.throttle'), channelRoll: tr('sim.channel.roll'), channelPitch: tr('sim.channel.pitch'), channelYaw: tr('sim.channel.yaw'),
       settingsControllerHint: tr('sim.settings.controllerHint'), settingsNoAxes: tr('sim.settings.noAxes'),
-      controlsHint: tr('sim.controls'), invertLabel: tr('sim.controller.invert'),
+      controlsHint: tr('sim.controls'), chaseProgramHint: tr('sim.chaseProgramHint'), invertLabel: tr('sim.controller.invert'),
     };
   }
   function simulationScene() {

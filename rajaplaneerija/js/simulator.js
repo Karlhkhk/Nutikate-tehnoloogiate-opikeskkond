@@ -344,7 +344,7 @@ class FlightSimulator {
     let pitch = this.cameraMode === 'observer' ? this.observerPitch : this.pitch;
     if (this.cameraMode === 'chase') {
       const cp = Math.cos(this.pitch), sp = Math.sin(this.pitch), f = [Math.cos(this.yaw) * cp, Math.sin(this.yaw) * cp, sp];
-      const wanted = this.glWorld([this.pos[0] - f[0] * 3.2, this.pos[1] - f[1] * 3.2, this.pos[2] + 1.25 - f[2] * 3.2]);
+      const wanted = this.glWorld(this.chaseCameraPosition());
       if (!this.cameraFollowEye) this.cameraFollowEye = wanted.slice();
       this.cameraFollowEye = this.cameraFollowEye.map((v,i) => v + (wanted[i] - v) * .16);
       eye = this.cameraFollowEye;
@@ -763,6 +763,10 @@ class FlightSimulator {
   updateControlHint() {
     if (!this.ui.controlHint) return;
     const labels = this.getLabels();
+    if (this.cameraMode === 'chase' && this.scene?.drone === 'codrone') {
+      this.ui.controlHint.textContent = labels.chaseProgramHint;
+      return;
+    }
     this.ui.controlHint.textContent = this.controls.mode === 'controller' ? labels.settingsControllerHint : labels.keyboardHelp;
   }
 
@@ -1248,7 +1252,7 @@ class FlightSimulator {
     this.stopProgram();
     this.cameraFollowEye = null;
     this.pos = scene.start.slice();
-    this.pos[2] = Math.max(0.15, this.pos[2]);
+    this.pos[2] = Math.max(0.05, this.pos[2]);
     this.vel = [0, 0, 0];
     const first = scene.path.slice(1).find(p => Math.hypot(p[0] - this.pos[0], p[1] - this.pos[1]) > 0.05);
     this.yaw = first ? Math.atan2(first[1] - this.pos[1], first[0] - this.pos[0]) : Math.PI / 2;
@@ -1314,7 +1318,18 @@ class FlightSimulator {
     requestAnimationFrame(t => this.tick(t, token));
   }
 
-  droneCollisionRadius() { return this.scene?.drone === 'neo2' ? 0.19 : this.scene?.drone === 'tinywhoop' ? 0.12 : 0.16; }
+  droneCollisionRadius() { return this.scene?.drone === 'neo2' ? 0.14 : this.scene?.drone === 'tinywhoop' ? 0.075 : 0.11; }
+
+  chaseCameraPosition() {
+    const h=this.scene.hall, cp=Math.cos(this.pitch), sp=Math.sin(this.pitch);
+    const forward=[Math.cos(this.yaw)*cp,Math.sin(this.yaw)*cp,sp], margin=.08;
+    const wanted=[this.pos[0]-forward[0]*3.2,this.pos[1]-forward[1]*3.2,this.pos[2]+.45-forward[2]*3.2];
+    return [
+      Math.max(margin,Math.min(h.w-margin,wanted[0])),
+      Math.max(margin,Math.min(h.l-margin,wanted[1])),
+      Math.max(margin,Math.min(h.h-margin,wanted[2])),
+    ];
+  }
 
   pointSegmentDistance(point, a, b) {
     const ab = b.map((v,i) => v-a[i]), ap = point.map((v,i) => v-a[i]);
@@ -1357,12 +1372,11 @@ class FlightSimulator {
   }
 
   positionBlocked(position, radius, camera = false) {
-    const h=this.scene.hall, margin=radius+.06, lowZ=camera?1.05:.12, highZ=camera?h.h-.18:h.h-radius;
+    const h=this.scene.hall, margin=radius+.06, lowZ=camera ? .08 : .04, highZ=camera ? h.h-.08 : h.h-radius;
     if (position[0]<margin || position[0]>h.w-margin || position[1]<margin || position[1]>h.l-margin || position[2]<lowZ || position[2]>highZ) return true;
+    if (camera) return false;
     const colliders=this.scene.colliders || this.scene.elements;
-    if (!camera) return this.pointHitsObstacle(position, radius, colliders);
-    const torso=[position[0],position[1],position[2]-.68];
-    return this.pointHitsObstacle(position, radius*.7, colliders) || this.pointHitsObstacle(torso, radius, colliders);
+    return this.pointHitsObstacle(position, radius, colliders);
   }
 
   moveWithCollision(start, target, radius, camera = false) {
@@ -1375,7 +1389,7 @@ class FlightSimulator {
         const h=this.scene.hall, margin=radius+.06;
         candidate[0]=Math.max(margin,Math.min(h.w-margin,candidate[0]));
         candidate[1]=Math.max(margin,Math.min(h.l-margin,candidate[1]));
-        candidate[2]=Math.max(camera?1.05:.12,Math.min(camera?h.h-.18:h.h-radius,candidate[2]));
+        candidate[2]=Math.max(camera ? .08 : .04,Math.min(camera ? h.h-.08 : h.h-radius,candidate[2]));
         if (this.positionBlocked(candidate,radius,camera)) break;
         pos[axis]=candidate[axis];
       }
@@ -1392,6 +1406,9 @@ class FlightSimulator {
   update(dt) {
     if (this.cameraMode === 'observer') { this.updateObserver(dt); this.updateHud(); return; }
     if (this.programRunning) { this.updateProgram(dt); this.updateHud(); return; }
+    if (this.cameraMode === 'chase' && this.scene.drone === 'codrone') {
+      this.vel = [0, 0, 0]; this.pitch = 0; this.updateHud(); return;
+    }
     const k = this.keys;
     const controller = this.controls.mode === 'controller' ? this.readControllerInput() : null;
     const down = action => this.controls.keyboard[action].some(code => k.has(code));
@@ -1426,10 +1443,11 @@ class FlightSimulator {
   setCameraMode(mode) {
     if (!['fpv', 'chase', 'observer'].includes(mode)) return;
     if (mode !== 'observer' && document.pointerLockElement === this.canvas) document.exitPointerLock?.();
-    this.cameraMode = mode;
+    this.cameraMode = mode; this.keys.clear();
     this.cameraFollowEye = null;
     try { localStorage.setItem('droonirajaplaneerija.simCamera', mode); } catch (_) {}
     if (mode === 'observer' && this.observerPos[0] === 0 && this.observerPos[1] === 0) this.observerPos = [this.scene.hall.w / 2, this.scene.hall.l / 2, 1.65];
+    this.updateControlHint();
   }
 
   setQuality(value) {
@@ -1465,7 +1483,7 @@ class FlightSimulator {
       const duration = command.type === 'takeoff' || command.type === 'land' ? 1.4 : command.type === 'wait' ? Math.max(.1, Number(command.value) || 1) : command.type === 'turn' ? Math.max(.25, Math.abs(Number(command.value) || 90) / 90) : Math.max(.4, moveLength / (command.speed || .8));
       let target = start.slice(), targetYaw = yaw;
       if (command.type === 'takeoff') target[2] = Math.max(.8, this.scene.start[2] || .8);
-      if (command.type === 'land') target[2] = .15;
+      if (command.type === 'land') target[2] = .05;
       if (command.type === 'move') { const dist = Number(command.value) || 1; target[0] += Math.cos(yaw) * dist; target[1] += Math.sin(yaw) * dist; }
       if (command.type === 'moveXYZ') {
         target[0] += Math.cos(yaw) * command.x - Math.sin(yaw) * command.y;
@@ -1474,7 +1492,7 @@ class FlightSimulator {
       }
       if (command.type === 'turn') targetYaw += (Number(command.value) || 90) * Math.PI / 180;
       const hall = this.scene.hall;
-      target[0] = Math.max(.2, Math.min(hall.w - .2, target[0])); target[1] = Math.max(.2, Math.min(hall.l - .2, target[1])); target[2] = Math.max(.15, Math.min(hall.h - .1, target[2]));
+      target[0] = Math.max(.2, Math.min(hall.w - .2, target[0])); target[1] = Math.max(.2, Math.min(hall.l - .2, target[1])); target[2] = Math.max(.05, Math.min(hall.h - .1, target[2]));
       this.programStart = { pos: start, yaw, target, targetYaw, duration };
       this.programElapsed = 0;
     }
@@ -1552,7 +1570,7 @@ class FlightSimulator {
   cameraPoint(p) {
     let camera = this.cameraMode === 'observer' ? this.observerPos : [this.pos[0], this.pos[1], this.pos[2] + .08];
     let yaw = this.cameraMode === 'observer' ? this.observerYaw : this.yaw, pitch = this.cameraMode === 'observer' ? this.observerPitch : this.pitch;
-    if (this.cameraMode === 'chase') { camera = [this.pos[0] - Math.cos(this.yaw)*3.2, this.pos[1] - Math.sin(this.yaw)*3.2, this.pos[2] + 1.25]; pitch = 0; }
+    if (this.cameraMode === 'chase') { camera = this.chaseCameraPosition(); pitch = 0; }
     const x = p[0] - camera[0], y = p[1] - camera[1], z = p[2] - camera[2];
     const cp = Math.cos(pitch), sp = Math.sin(pitch), cy = Math.cos(yaw), sy = Math.sin(yaw);
     const right = -x * sy + y * cy;
